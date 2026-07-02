@@ -74,7 +74,6 @@ docstring-code-format = true
 
 # ---------------------------------------------------------------------------
 # Types: mypy --strict with the pydantic plugin. See DECISIONS.md D7.
-# lands in Phase 0's final step.
 # ---------------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.11"
