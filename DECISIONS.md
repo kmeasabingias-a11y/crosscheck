@@ -231,3 +231,36 @@ guards it and `UNCLEAR` out of v1 metrics. What I gave up: the convenience of lo
 dict-shaped data — deliberately, in favor of enforced contracts.
 
 **Proposed by me**, following the spec (§6, §7, §11).
+
+---
+
+## D11 — Testing and CI: hermetic unit tests, mypy covers tests, CI mirrors local gates (2026-07-02)
+
+**Decision.** Phase 0 ships hermetic unit tests under `tests/unit/` with **no
+`tests/__init__.py`**. `mypy`'s `files` is widened from `["src"]` to `["src", "tests"]`, so the
+tests are type-checked under `--strict`. The CI workflow (GitHub Actions) runs the exact four
+local gates (ruff, ruff-format, mypy, pytest) on a clean runner, triggered on push/PR to `main`,
+installing with `uv sync --frozen`, with least-privilege `contents: read` permissions and
+ref-scoped `cancel-in-progress` concurrency.
+
+**Options considered.**
+- *mypy scope:* type-check `src` only vs. `src` + `tests`.
+- *Test package:* add `tests/__init__.py` (tests as a package) vs. omit it.
+- *Test isolation:* rely on ambient environment / a fixture `.env` vs. construct objects
+  explicitly so no environment can affect results.
+- *CI triggers:* every branch vs. `main` only.
+
+**Rationale / trade-offs.** I type-check the tests too because a test that doesn't type-check
+often doesn't test what its author thinks; the cost is real annotations and one justified
+`# type: ignore[call-arg]` (for the intentional bad-kwarg test, which `init_forbid_extra` flags
+and `warn_unused_ignores` keeps honest). I omit `tests/__init__.py` because both pytest and mypy
+discover `tests/unit/` cleanly without it, and adding it would flip pytest into a different import
+mode that fights the src-layout — I verified discovery works without it. Tests are hermetic
+(values passed explicitly, which outrank env vars in pydantic-settings) so a developer's exported
+`CROSSCHECK_*` var or local `.env` can't make them flake. CI is scoped to `main` to avoid
+double-runs and conserve Actions minutes on a private repo, and `--frozen` guarantees CI installs
+exactly the locked versions. What I gave up: type-checking tests adds a little annotation
+overhead — a fair price for the rigor, and it matches the project's "evaluation/quality is
+first-class" stance.
+
+**Proposed by me**, following the spec (§5, §12).
