@@ -197,3 +197,37 @@ runtime deprecation warning. `ge=0.0` rejects a negative budget at construction 
 gave up: nothing material — the strict check remains everywhere else.
 
 **Proposed by me**, following the spec for the cost ceiling.
+
+---
+
+## D10 — Schema design: `extra="forbid"` base, typed `Quantitative`, id-based `Pair`, reserved taxonomy (2026-07-02)
+
+**Decision.** All pipeline schemas (`Section`, `Document`, `Quantitative`, `Claim`, `Pair`,
+`Verdict`) inherit a shared `CrossCheckModel` base that sets `extra="forbid"`. The claim's
+numeric core is a typed `Quantitative` model, not a bare dict. `Pair` carries the two claim
+**ids** plus optional per-stage scores rather than embedding full `Claim` objects. The
+`ContradictionType` taxonomy (`StrEnum`) keeps the five v1 types plus `UNCLEAR` and a
+reserved, inert `CONDITIONAL_TRIPLET`, with a `V1_TYPES` frozenset naming only the five that
+v1 detects.
+
+**Options considered.**
+- *Unknown fields:* pydantic default (`extra="ignore"`) vs. `extra="forbid"`.
+- *Quantitative:* the spec's illustrative `dict | None` vs. a typed sub-model.
+- *Pair:* embed full `Claim` objects vs. store claim ids and resolve from the repository.
+- *Reserved type:* omit `CONDITIONAL_TRIPLET` entirely vs. keep it in the enum but inert.
+
+**Rationale / trade-offs.** `extra="forbid"` turns schema drift into a loud failure exactly
+where it's cheapest to catch — when parsing LLM structured output into a `Claim`/`Verdict`, a
+hallucinated or renamed key raises instead of being silently dropped; it also pairs with the
+`init_forbid_extra` mypy setting from D7. The cost is that a provider legitimately adding a
+field means updating the model, which is the correct, deliberate response anyway. I typed
+`Quantitative` because §11 forbids bare dicts in public APIs and the `{number, unit, operator}`
+shape is known; `Document.metadata` stays `dict[str, Any]` as the justified exception (metadata
+is genuinely open-ended). `Pair` stores ids because Qdrant is the system of record (§7.2), so
+embedding claims would duplicate state and bloat the edge; the trade-off is a repository lookup
+at judge time, which is cheap and already needed. Keeping `CONDITIONAL_TRIPLET` reserved (not
+omitted) lets reports and schemas express it when the roadmap reaches it, while `V1_TYPES`
+guards it and `UNCLEAR` out of v1 metrics. What I gave up: the convenience of loose,
+dict-shaped data — deliberately, in favor of enforced contracts.
+
+**Proposed by me**, following the spec (§6, §7, §11).
