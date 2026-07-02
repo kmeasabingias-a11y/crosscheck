@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Environments
+.venv/
+.env
+
+# Tooling caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local vector DB storage (docker-compose Qdrant volume)
+qdrant_storage/
+
+# OS
+.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
