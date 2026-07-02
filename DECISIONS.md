@@ -264,3 +264,48 @@ overhead — a fair price for the rigor, and it matches the project's "evaluatio
 first-class" stance.
 
 **Proposed by me**, following the spec (§5, §12).
+
+---
+
+## D12 — LLM wrapper design: Anthropic SDK, `messages.parse` structured output, class-based cost tracking (2026-07-03)
+
+**Decision.** `crosscheck/llm.py` wraps the **Anthropic SDK directly** (Anthropic-only in
+Phase 1; the OpenAI cross-model provider for the eval harness arrives in Phase 5 per D4).
+Structured output uses `client.messages.parse(output_format=<pydantic model>)`, which returns
+a validated instance. The "single wrapper" (spec §11) is a **class**, `LLMClient`, not a bare
+module-level `call()` — it holds per-audit cost state. Cost tracking lives in a `CostTracker`
+priced from a `MODEL_PRICING` table in `llm.py` (cache-aware: writes 1.25×, reads 0.10× the
+input rate). The wrapper refuses to call an unpriced model, and checks running spend against a
+per-audit ceiling before every dispatch, raising `CostCeilingError` when reached. Errors from
+the SDK are caught at the `anthropic.AnthropicError` base and re-raised as `LLMError`. No
+sampling parameters (`temperature`/`top_p`/`top_k`) are sent. Retries use the SDK's built-in
+exponential backoff (`max_retries`). Model defaults: `judge_model = extraction_model =
+"claude-sonnet-4-6"`; `llm_max_tokens = 2048`, `llm_timeout_seconds = 60`, `llm_max_retries = 2`.
+
+**Options considered.**
+- *SDK vs. framework:* raw Anthropic SDK (spec §4/§5) vs. LiteLLM/Instructor. Spec mandates raw.
+- *Structured output:* `messages.parse` + pydantic vs. hand-rolled tool-use with a JSON schema
+  vs. `output_config.format` + manual `json.loads`.
+- *Wrapper shape:* class `LLMClient` (per-audit state) vs. a module-level `call()` function.
+- *Sampling:* send `temperature=0` for determinism vs. send nothing.
+- *Extraction model:* Sonnet 4.6 (quality) vs. Haiku 4.5 (cost) as the default.
+
+**Rationale / trade-offs.** `messages.parse` is the SDK's recommended pydantic path — it
+returns a validated `SchemaT` and, crucially, the SDK **strips JSON-schema constraints the
+structured-output API doesn't support** (our `ge=0.0`/`le=1.0` bounds on `confidence`/probs)
+and re-validates them client-side, so our existing models work unchanged. A class wrapper was
+chosen over a bare `call()` because cost tracking needs per-audit state and a per-audit ceiling;
+`LLMClient` still satisfies "all calls go through one wrapper," and takes an injectable `client`
+so tests need no network. I send **no sampling parameters**: `temperature`/`top_p`/`top_k` are
+removed on Opus 4.8/4.7 (a 400 error) and omitting them keeps the wrapper forward-compatible if
+the judge model changes; determinism comes from the model's defaults and prompt design, not a
+temperature knob. Pricing lives in a dated table in `llm.py` (the one place to update when
+Anthropic changes prices); an unpriced model is refused *before* calling so the ceiling can
+never be silently bypassed. Extraction defaults to Sonnet 4.6 to protect decontextualization
+quality (bad extraction poisons every downstream stage, spec §7.1); Haiku 4.5 is left as a
+config-swappable cost lever to benchmark once the extraction gold set exists. What I gave up:
+the OpenAI path now (deferred, D4) and a temperature dial (unavailable on the newest models
+anyway). Verified against `anthropic` 0.115.1 that `messages.parse`, `output_format`,
+`parsed_output`, the four `usage` token fields, and `AnthropicError` all exist and type-check.
+
+**Proposed by me**, following the spec (§4, §5, §11).

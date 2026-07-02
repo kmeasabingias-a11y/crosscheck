@@ -55,6 +55,17 @@ class Settings(BaseSettings):
     # Per-document cap within a single audit.
     max_document_cost_usd: float = Field(default=0.50, ge=0.0)
 
+    # --- Models (Phase 1) ---
+    # Judge and claim extraction both default to Claude Sonnet 4.6 (spec "Primary LLM").
+    # Haiku 4.5 is the cheaper option to benchmark for high-volume extraction (see D12).
+    judge_model: str = "claude-sonnet-4-6"
+    extraction_model: str = "claude-sonnet-4-6"
+
+    # --- LLM call tuning (Phase 1) ---
+    llm_max_tokens: int = 2048
+    llm_timeout_seconds: float = 60.0
+    llm_max_retries: int = 2
+
 
 @lru_cache
 def get_settings() -> Settings:
