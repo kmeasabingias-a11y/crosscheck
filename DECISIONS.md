@@ -163,3 +163,37 @@ the same file. The spec's Phase 0 deliverable is exactly "docker-compose with Qd
 one-command full-stack boot is a Phase 7 / §2 item. No meaningful trade-off.
 
 **Proposed by me**, following the spec's phasing.
+
+---
+
+## D9 — Config design: `CROSSCHECK_` prefix, unprefixed provider keys, `validate_by_name`, cost-ceiling defaults (2026-07-02)
+
+**Decision.** The `Settings` panel (`config.py`) uses `env_prefix="CROSSCHECK_"` for project
+settings, but reads the two provider API keys from their **standard unprefixed names**
+(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) via `AliasChoices`, also accepting the prefixed
+variants. `validate_by_name=True` is set on the model. The cost ceiling defaults are
+`max_audit_cost_usd = 5.00` and `max_document_cost_usd = 0.50`, both guarded with `ge=0.0`.
+
+**Options considered.**
+- *Key naming:* prefix everything (`CROSSCHECK_ANTHROPIC_API_KEY`) vs. accept the providers'
+  standard names.
+- *The mypy `warn_required_dynamic_aliases` error from `AliasChoices`:* (a) add
+  `validate_by_name=True` to the model; (b) disable `warn_required_dynamic_aliases` in the
+  pydantic-mypy plugin config; (c) drop `AliasChoices` and resolve keys manually.
+- *Cost defaults:* the spec suggests ~5.00 for the audit ceiling; the per-document cap and the
+  numeric guard were mine to set.
+
+**Rationale / trade-offs.** Accepting the unprefixed key names means a developer who already
+has `ANTHROPIC_API_KEY` exported (the near-universal convention) needs no duplication — the
+prefixed variant still works for anyone who wants namespacing. For the mypy error I chose
+`validate_by_name=True` (option a) over disabling the plugin check (b): it's a targeted fix
+that keeps the strict check active for every *other* model, and as a bonus lets tests construct
+`Settings(anthropic_api_key="…")` directly instead of monkeypatching the environment.
+Environment loading is unaffected because `validate_by_alias` stays on by default. I rejected
+(c) as needless hand-rolled code. I verified on pydantic 2.13.4 that `validate_by_name` (the
+current keyword; `populate_by_name` is the deprecated spelling) silences the error with no
+runtime deprecation warning. `ge=0.0` rejects a negative budget at construction while allowing
+`0.0` as a meaningful "spend nothing" value that the spec's cost-ceiling test relies on. What I
+gave up: nothing material — the strict check remains everywhere else.
+
+**Proposed by me**, following the spec for the cost ceiling.
