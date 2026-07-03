@@ -309,3 +309,53 @@ anyway). Verified against `anthropic` 0.115.1 that `messages.parse`, `output_for
 `parsed_output`, the four `usage` token fields, and `AnthropicError` all exist and type-check.
 
 **Proposed by me**, following the spec (§4, §5, §11).
+
+---
+
+## D13 — Prompt library: versioned `<name>.v<N>.md` files, packaged, with a safe placeholder renderer (2026-07-03)
+
+**Decision.** Prompts live under `src/crosscheck/prompts/` as plain-text files named
+`<name>.v<N>.md` (e.g. `claim_extraction_system.v1.md`). A small loader in
+`prompts/__init__.py` exposes `load_prompt(name, *, version=None) -> Prompt`; with no version
+it resolves the **highest** `N` on disk. `Prompt` is a frozen dataclass (`name`, `version`,
+`text`) with a `render(**subs)` method that does **literal `{{key}}` replacement, not
+`str.format`**. Files are discovered with `importlib.resources.files(__package__)` and the index
+is `lru_cache`d. Claim extraction ships as two prompts — a full instruction `system` prompt and a
+thin `user` template carrying a `{{chunks}}` placeholder. No `pyproject.toml` change is needed:
+hatchling's `packages = ["src/crosscheck"]` already ships non-`.py` package data into the wheel
+(verified by building a probe wheel and confirming the `.md` file was included).
+
+**Options considered.**
+- *Where prompt text lives:* inline Python string constants vs. external files. (Spec §11
+  mandates external files — recorded here for the "why".)
+- *File format / versioning:* single file per prompt with in-file version metadata vs.
+  version-in-filename (`.vN.md`) vs. a version subdirectory per prompt.
+- *Substitution mechanism:* Python `str.format` / `string.Template` vs. literal `{{key}}`
+  `str.replace`.
+- *One combined prompt vs. split system+user:* a single blob parsed into sections vs. two
+  separately named files.
+- *Resource access:* `Path(__file__).parent` vs. `importlib.resources.files`.
+- *LLM output shape:* have the model emit full `Claim` objects (incl. `claim_id`,
+  `evidence_offset`) vs. a **reduced** extraction schema the code completes.
+
+**Rationale / trade-offs.** Version-in-filename keeps every prior revision on disk for
+reproducibility and clean diffs, and "load highest unless pinned" means revising a prompt is
+*adding* `…v2.md`, never editing history — which matters because a prompt change silently moves
+every downstream number. I rejected `str.format` for rendering because document text routinely
+contains literal `{` / `}` (JSON snippets, code, math) that `format` would try to interpret and
+crash on or mis-fill; literal `{{key}}` replacement can never misread payload braces, and the
+placeholder syntax is visually distinct from prose. Splitting claim extraction into `system`
+(stable instructions) and `user` (per-call chunk data) matches the SDK's message roles and lets
+the system prompt be cached later without touching the variable part. `importlib.resources` is
+the zip-safe, install-correct way to read package data (works from a wheel, not just a source
+checkout), and I confirmed the files ship in the wheel rather than assuming it. The prompt asks
+the model for a **reduced** set of fields (`chunk_id`, `text`, `evidence_quote`, `subject`,
+`predicate`, `conditions`, `polarity`, `quantitative`) and the extractor computes the
+trust-sensitive fields itself — `evidence_offset` by locating the verbatim quote, `claim_id` by
+hashing, `doc_id`/`section_id` from the chunk — so the model can't fabricate offsets or ids and
+the verbatim-evidence rule is enforced in code, not just requested in the prompt (the same
+defense the judge uses in §7.4). What I gave up: a touch more indirection than an inline string,
+and a filename convention I have to keep to — both cheap next to keeping prompts diffable,
+versioned, and out of the code.
+
+**Proposed by me**, following the spec (§7.1, §11).
