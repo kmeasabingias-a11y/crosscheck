@@ -3,8 +3,9 @@
 A single :class:`Settings` object is the typed, validated source of truth for all
 runtime configuration. Values come from the environment and an optional ``.env``
 file (see ``.env.example`` for the template). Phase 0 covers app basics, the LLM
-provider keys, and the mandatory cost ceiling (spec v2 §4). Later phases extend the
-same panel with Qdrant, model-selection, and per-type NLI-threshold settings.
+provider keys, and the mandatory cost ceiling (spec v2 §4); Phase 1 adds model
+selection and claim-extraction tuning. Later phases extend the same panel with
+Qdrant and per-type NLI-threshold settings.
 """
 
 from functools import lru_cache
@@ -65,6 +66,13 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 2048
     llm_timeout_seconds: float = 60.0
     llm_max_retries: int = 2
+
+    # --- Claim extraction (Phase 1) ---
+    # Chunks per extraction call, to amortize the system prompt (spec §7.1: batch 3-5).
+    extraction_batch_size: int = Field(default=4, ge=1)
+    # Output-token budget per chunk in a batch; the call's max_tokens is this times the
+    # batch size (spec §7.1 budgets ~1500 output tokens per chunk).
+    extraction_max_output_tokens_per_chunk: int = Field(default=1500, ge=1)
 
 
 @lru_cache

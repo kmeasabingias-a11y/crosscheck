@@ -1,10 +1,10 @@
 """Core pydantic schemas that flow between CrossCheck's pipeline stages.
 
 Every object crossing a module boundary is one of these models (spec v2 §11: no bare
-dicts in public APIs). Ingestion produces :class:`Document` / :class:`Section`;
-extraction produces :class:`Claim`; retrieval produces :class:`Pair`; the judge
-produces :class:`Verdict`. All models forbid unknown fields, so schema drift — a
-renamed LLM output key, say — fails loudly instead of being silently dropped.
+dicts in public APIs). Ingestion produces :class:`Document` / :class:`Section` and then
+:class:`Chunk`; extraction produces :class:`Claim`; retrieval produces :class:`Pair`;
+the judge produces :class:`Verdict`. All models forbid unknown fields, so schema drift —
+a renamed LLM output key, say — fails loudly instead of being silently dropped.
 """
 
 from pathlib import Path
@@ -42,6 +42,22 @@ class Document(CrossCheckModel):
     title: str | None = None
     sections: list[Section] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class Chunk(CrossCheckModel):
+    """A window of section text — the unit of claim extraction.
+
+    Produced by the chunker (sentence-aware, 200-400 tokens with overlap) and consumed
+    by the claim extractor. Carries its position (``char_span`` within the section) and
+    document metadata so every claim can be traced back to its source.
+    """
+
+    chunk_id: str = Field(description="Deterministic id from doc_id + section_id + char_span.")
+    doc_id: str
+    section_id: str
+    text: str
+    char_span: tuple[int, int] = Field(description="[start, end) char offsets within the section.")
+    token_count: int | None = None
 
 
 class Quantitative(CrossCheckModel):

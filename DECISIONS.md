@@ -359,3 +359,106 @@ and a filename convention I have to keep to — both cheap next to keeping promp
 versioned, and out of the code.
 
 **Proposed by me**, following the spec (§7.1, §11).
+
+---
+
+## D14 — `Chunk` model in `models.py` and a shared `ids.py` for deterministic ids (2026-07-03)
+
+**Decision.** Added a `Chunk` schema (`chunk_id`, `doc_id`, `section_id`, `text`, `char_span`,
+`token_count`) to `models.py`, between `Document` and `Quantitative`. Introduced a new
+`src/crosscheck/ids.py` module holding the pipeline's deterministic id functions: `content_hash`
+(hash of chunk text — the extraction cache key), `chunk_id` (from doc + section + span), and
+`claim_id` (from doc + chunk + evidence offset). Each id is a 16-hex-char BLAKE2b digest of a
+unit-separator-joined string, namespaced by a `kind` tag so different id types can't collide on
+the same parts. `pair_id` is deferred to Phase 2 (retrieval), where its producer lives.
+
+**Options considered.**
+- *Where `Chunk` lives:* define it inside the chunker module vs. in `models.py` with the other
+  boundary schemas.
+- *Where hashing lives:* inline `hashlib` calls at each call site vs. a single `ids.py`.
+- *Hash function:* `hashlib.sha256` vs. `blake2b` with a short `digest_size`; and hex length 8
+  vs. 16 vs. 32 chars.
+- *`chunk_id` basis:* hash of the chunk *text* vs. hash of its *position* (doc + section + span).
+- *Whether to ship `chunk_id`/`pair_id` now* even though their producers (chunker, retrieval)
+  don't exist yet.
+
+**Rationale / trade-offs.** `Chunk` is a *boundary* object — it flows from chunking to extraction
+— so it belongs with the other cross-stage contracts in `models.py`, and putting it there let me
+build and test the claim extractor *before* the chunker exists (the extractor takes `Chunk`s;
+tests construct them directly). A single `ids.py` keeps every id derivation in one auditable
+place, which matters because ids are load-bearing for caching and resume (§4): if two call sites
+hashed "the same thing" slightly differently, the cache would silently miss. I chose `blake2b`
+with an 8-byte digest (16 hex chars, 64 bits) over sha256 because these are content addresses,
+not security tokens — 64 bits is far beyond collision risk at corpus scale (thousands–millions of
+claims) and the short id keeps cache filenames and logs readable. The `kind` tag and the `\x1f`
+unit-separator join prevent two different id *types* (or two different field groupings) from
+colliding on coincidentally-equal concatenations. Critically, `chunk_id` hashes **position**, not
+text, while the extraction cache key (`content_hash`) hashes **text** — so two chunks with
+identical wording share a cache entry (we don't re-pay the LLM) yet keep distinct ids and correct
+per-position provenance. I shipped `chunk_id` now (the `Chunk` model needs a documented id basis
+and the chunker will use it) but deferred `pair_id` to the phase that first constructs a `Pair`,
+to avoid unused code. What I gave up: a little indirection (ids behind function calls) — worth it
+for one correct, tested definition of every id.
+
+**Proposed by me**, following the spec (§4, §7.1, §7.2).
+
+---
+
+## D15 — Claim extractor: reduced LLM schema + code-side finalization, text-hash cache, batching, decontextualization heuristic (2026-07-03)
+
+**Decision.** `ingestion/claim_extractor.py` extracts claims in these steps: (1) the LLM returns a
+**reduced** `ExtractedClaim` (chunk_id, text, evidence_quote, subject, predicate, conditions,
+polarity, quantitative) via `LLMClient.structured` on an internal `_ExtractionBatch` wrapper; (2)
+the code **finalizes** each claim itself — it locates `evidence_quote` as a verbatim substring of
+the chunk (dropping and counting any claim whose quote is absent or empty), computes
+`evidence_offset` from that position, derives `claim_id` by hashing, and fills `doc_id`/
+`section_id` from the chunk. Chunks are processed in batches of `extraction_batch_size` (default
+4). Each chunk's raw extraction is cached by `content_hash(chunk.text)` behind a `ClaimCache`
+`Protocol` with an `InMemoryClaimCache` default and a `DiskClaimCache` (one JSON file per hash)
+for cross-run/resume persistence. A conservative `is_decontextualized` heuristic flags claims
+that open with a bare pronoun/demonstrative; flagged claims are **kept but counted**, surfaced as
+`ExtractionResult.decontextualization_failure_rate`. `CostCeilingError` is allowed to propagate;
+per-chunk cache writes happen as work completes so a resumed run continues from where it stopped.
+
+**Options considered.**
+- *LLM output shape:* full `Claim` (model supplies offsets/ids) vs. reduced schema + code-side
+  finalization.
+- *Evidence trust:* trust the model's quote/offset vs. re-locate the quote in the chunk and
+  reject non-substring quotes.
+- *Cache key:* hash of chunk *text* vs. hash of chunk *position*; and cache the *reduced* output
+  vs. the *finalized* `Claim`s.
+- *Cache backend:* in-memory only vs. a `Protocol` with in-memory + on-disk implementations.
+- *Cache abstraction:* `Protocol` (structural) vs. an ABC.
+- *Decontextualization detector:* leading-pronoun heuristic vs. a second LLM validator vs.
+  a dependency parse; and flag-and-keep vs. drop.
+- *`decontextualization_failure_rate`:* a pydantic `computed_field` (serialized) vs. a plain
+  `@property`.
+- *Ceiling behavior:* catch `CostCeilingError` and return partial vs. let it propagate.
+
+**Rationale / trade-offs.** The **reduced schema + code-side finalization** is the load-bearing
+decision: offsets and ids are trust-sensitive, and a model that emits its own offsets can be
+subtly or outright wrong. By having the model return only the verbatim `evidence_quote` and
+re-locating it in the chunk myself, the offset is *correct by construction* and any hallucinated
+quote is caught (`str.find` miss → drop + count), the same defense the judge uses in §7.4 — and
+`claim_id` derives from the verified offset, so ids are stable and honest. I cache the **reduced**
+output keyed by **text hash**, not finalized `Claim`s: the LLM result is position-independent, so
+identical text anywhere reuses it (no re-spend), while finalization re-attaches the *current*
+chunk's doc/section/offset — caching finalized claims would misattribute a shared-text chunk to
+the wrong document. A `Protocol` cache (not an ABC) honors "composition over inheritance" (§11)
+and lets tests inject an in-memory cache with zero ceremony; the `DiskClaimCache` gives the §4
+resume story a concrete home now. For decontextualization I chose the **cheap leading-pronoun
+heuristic** over a second LLM call (which would add cost and latency to every chunk) or a parser
+dependency: it's deliberately conservative (excludes existential "there"/"here") to keep false
+positives low, and it **flags without dropping** because the spec (§7.1) wants the failure *rate
+observed*, not the claims silently discarded. I made the rate a plain `@property` rather than a
+`computed_field` to avoid a known pydantic-mypy `--strict` friction (decorated-property warnings
+under `warn_unused_ignores`); the raw counts are real fields, so the metrics module can still
+serialize them. Letting `CostCeilingError` propagate keeps partial-report policy in the
+orchestrator (§4) rather than duplicating it here, and because the cache is written per chunk as
+work completes, nothing extracted is lost on a ceiling stop. Batching at 4 amortizes the system
+prompt while staying within the spec's 3–5 guidance. What I gave up: strict `extra="forbid"` on
+`ExtractedClaim` means a malformed batch raises rather than being partially salvaged — acceptable,
+since structured output rarely emits extra keys and loud failure surfaces prompt/schema drift
+early (D10); a per-batch resilience wrapper is noted as a possible later improvement.
+
+**Proposed by me**, following the spec (§4, §7.1, §7.4, §11).
