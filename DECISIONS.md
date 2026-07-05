@@ -682,3 +682,67 @@ gives the Phase 6 `metrics.py`/`runner.py` a ready import. What I gave up: a ful
 and semantic-equivalence matching (deliberately, for determinism).
 
 **Proposed by me**, following the spec (§7.1, §9.2, §11).
+
+---
+
+## D19 — Phase 1 ingestion integration test: real-LLM, self-skipping, env-parametrized to hit the 10-doc/≥200-claim milestone (2026-07-06)
+
+**Decision.** Added `tests/integration/test_ingestion_pipeline.py`, the Phase 1 end-to-end
+ingestion test (spec §12, Phase 1 milestone). It runs the **real** path — `parse → chunk_document
+→ ClaimExtractor.extract` — over a fixture corpus with real Anthropic calls, asserts every
+extracted claim is well-formed, that claim ids are unique, and that the count clears a threshold.
+
+- **Marked `@pytest.mark.integration`** (module-level `pytestmark`) and **self-skips** when
+  `ANTHROPIC_API_KEY` is unset (`pytest.skip`), so CI stays green without a key while a keyed run
+  exercises the whole path. The marker is already registered in `pyproject.toml` (Phase 0), so no
+  config change.
+- **Committed fixture corpus** at `tests/fixtures/corpus/` — three small real-prose documents
+  (`handbook.md`, `refund_policy.txt`, `vendor_agreement.md`, spanning PTO/insurance/refund/
+  jurisdiction so they double as future contradiction material). They parse to 5 chunks holding
+  ~20 atomic claims, so the **default threshold `min_claims=6` is comfortably clearable** by a
+  real extractor while keeping each run to a few cents.
+- **Env-parametrized to reach the Phase 1 milestone.** `CROSSCHECK_TEST_CORPUS` and
+  `CROSSCHECK_TEST_MIN_CLAIMS` override the corpus and threshold, so the *same test* becomes the
+  "10-doc corpus → ≥200 well-formed claims" milestone by pointing it at the seed corpus with
+  `CROSSCHECK_TEST_MIN_CLAIMS=200`. This reconciles §12's "3-document fixture" with Phase 1's
+  "10-document / ≥200 claims" as two runs of one test rather than two tests.
+- **Well-formedness invariants** (`_assert_well_formed`): non-empty ids/text, polarity in the
+  allowed set, a valid `evidence_offset` whose length matches `evidence_quote`, the quote grounded
+  **verbatim in its source section**, and a legal `quantitative.operator` when present.
+- **No new source code and no orchestrator.** The parse→chunk→extract loop lives in the test, not
+  in a new pipeline module — the full audit orchestrator (with retrieval/detection/judge, the cost
+  ceiling across stages, and resume) is Phase 3 and shouldn't be pre-built to satisfy one test.
+
+**Options considered.**
+- *Skip mechanism:* self-skip on a missing key inside the test vs. a CI `-m "not integration"`
+  deselect vs. an autouse fixture.
+- *Fixture size / threshold:* commit a 3-doc fixture with a low threshold (§12) vs. commit a
+  full 10-doc corpus and assert ≥200 (Phase 1) vs. one env-parametrized test covering both.
+- *Grounding check:* re-derive the offset against the chunk vs. assert the quote is a substring
+  of its section vs. trust the extractor's own substring notarization.
+- *Where the ingest loop lives:* inline in the test vs. a new `ingestion/pipeline.py` helper vs.
+  wait for the Phase 3 orchestrator.
+- *A mocked end-to-end (offline) test now* vs. deferring it to the §12 regression snapshot.
+
+**Rationale / trade-offs.** A **self-skip on the key** keeps one test that is both the cheap CI
+smoke test and the milestone check, and it can't be forgotten the way an external `-m` filter can;
+the test simply does nothing useful without a key rather than failing. **Env-parametrization** is
+what lets a single small committed fixture (fast, near-free, always present) scale up to the real
+Phase 1 milestone on demand — committing a 10-doc corpus that hits 200 claims would make every
+keyed run slow and expensive and bloat the repo, while a 3-doc fixture alone would never actually
+demonstrate the "≥200" deliverable. The **grounding check** asserts the quote is a verbatim
+substring of its *section* (not re-deriving the chunk offset) because that is the strongest claim
+the test can make without re-plumbing chunk objects, and it independently re-checks the extractor's
+own notarization end-to-end. I kept the loop **in the test** to avoid pre-building the orchestrator
+(spec anti-pattern: the orchestration is Phase 3 engineering, not test scaffolding). I **deferred a
+committed mocked end-to-end test**: doing it now would need a fake that parses the extractor's
+internal prompt serialization to emit valid quotes — coupling a shipped test to an implementation
+detail — and §12 already calls for a proper mocked **regression snapshot** of the *full* pipeline,
+which is better built once the pipeline through the judge exists (Phase 3–4) than as a throwaway
+ingestion-only mock now. (I did use exactly such a fake to verify this hand-over offline, but it
+stays in the scratchpad, not the repo.) What I gave up: CI does not exercise the parse→chunk→extract
+composition on every push (only the keyed run does) — an acceptable gap, since each stage is
+unit-tested and the composition is a few lines, and the §12 regression snapshot will close it.
+
+**Proposed by me**, following the spec (§12, Phase 1); the offline-vs-deferred choice is my
+recommendation and is revisitable.
