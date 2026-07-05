@@ -4,8 +4,8 @@ A single :class:`Settings` object is the typed, validated source of truth for al
 runtime configuration. Values come from the environment and an optional ``.env``
 file (see ``.env.example`` for the template). Phase 0 covers app basics, the LLM
 provider keys, and the mandatory cost ceiling (spec v2 §4); Phase 1 adds model
-selection and claim-extraction tuning. Later phases extend the same panel with
-Qdrant and per-type NLI-threshold settings.
+selection, claim-extraction tuning, and chunking. Later phases extend the same panel
+with Qdrant and per-type NLI-threshold settings.
 """
 
 from functools import lru_cache
@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     # Output-token budget per chunk in a batch; the call's max_tokens is this times the
     # batch size (spec §7.1 budgets ~1500 output tokens per chunk).
     extraction_max_output_tokens_per_chunk: int = Field(default=1500, ge=1)
+
+    # --- Chunking (Phase 1) ---
+    # Sentence-aware chunks target 200-400 tokens with ~50-token overlap (spec §7.1).
+    # Only the upper bound and overlap are knobs; the 200 lower bound is a soft target
+    # that greedy packing realizes (short sections / trailing remainders may be smaller).
+    chunk_max_tokens: int = Field(default=400, ge=1)
+    chunk_overlap_tokens: int = Field(default=50, ge=0)
 
 
 @lru_cache

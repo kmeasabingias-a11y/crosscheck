@@ -539,3 +539,82 @@ structure can be added behind the same `_RawSection` seam later if a corpus need
 scheme = content hash, PDF sectioning = per-page + header/footer stripping) were my
 recommendations; I **confirmed both explicitly on 2026-07-05** after reviewing the options, so
 they are settled rather than provisional.
+
+---
+
+## D17 — Chunker: pysbd sentence splitting, greedy token-packing with a guarded overlap, injectable offline token counter (2026-07-05)
+
+**Decision.** `ingestion/chunking.py` turns each parsed `Section` into overlapping,
+sentence-aligned `Chunk`s. `chunk_section(section, doc_id, *, max_tokens, overlap_tokens,
+count_tokens)` is the core; `chunk_document(document, *, settings, count_tokens)` maps it over a
+document's sections and flattens. Key choices:
+
+- **Sentence splitting = `pysbd`** (`Segmenter(language="en", clean=False, char_span=True)`), a
+  pure-python, deterministic segmenter that returns per-sentence **character spans**. Chosen over
+  nltk `punkt` and spaCy.
+- **Greedy token packing.** Sentences are packed into a chunk until adding the next would exceed
+  `max_tokens`; a lone sentence bigger than `max_tokens` becomes its own oversized chunk (logged,
+  never split — sentence-awareness is preserved).
+- **Guarded overlap.** After a chunk `[i, j)`, the next chunk starts a few sentences early to
+  share ~`overlap_tokens` of context, under two guards: never back past `i + 1` (forward
+  progress), and never back so far that sentence `j` no longer fits under `max_tokens` — which
+  would reproduce the same chunk. When a lone large sentence blocks overlap, consecutive chunks
+  fall back to **contiguous** (abutting, no gap). So the invariant is *contiguous-or-overlapping,
+  always progressing, never a subset chunk* — not "always overlapping".
+- **`char_span` is relative to the section text**, taken straight from pysbd's spans, so
+  `chunk_id = ids.chunk_id(doc_id, section_id, char_span)` is exact and overlapping chunks get
+  distinct ids. Each chunk's `token_count` is filled.
+- **Token counter is injectable** (`TokenCounter = Callable[[str], int]`); the default
+  `approximate_token_count` uses the ~0.75-words-per-token rule of thumb — **offline and
+  deterministic**, so unit tests need no model download. A precise tokenizer (the bge tokenizer
+  in Phase 2) can be injected without touching the algorithm.
+- **Config (`config.py`):** `chunk_max_tokens = 400`, `chunk_overlap_tokens = 50` (spec §7.1's
+  "200–400 tokens, 50 overlap"). **No separate `chunk_min_tokens` knob** — the 200 lower bound is
+  a soft target that greedy max-packing already realizes; short sections and trailing remainders
+  are legitimately allowed below it, so a hard min would be misleading.
+- **Dependency added:** `pysbd` (Phase 1, per D4), plus `pysbd.*` added to the existing
+  `[[tool.mypy.overrides]]` `ignore_missing_imports` list (no type stubs).
+
+**Options considered.**
+- *Sentence splitter:* pysbd vs. nltk `punkt` (`PunktSentenceTokenizer.span_tokenize`) vs. a
+  spaCy blank-pipeline `sentencizer` vs. a regex splitter.
+- *Token unit:* offline word-based approximation vs. `tiktoken` (cl100k BPE) vs. the real
+  bge/transformers tokenizer, and whether to make it injectable.
+- *Overlap mechanism:* fixed number of sentences vs. token-budget backup; guarded vs. unguarded.
+- *Size band:* enforce a hard `min`/`max` vs. max-only with a soft min.
+- *Chunker input:* take a `Settings` object (like the extractor) vs. take explicit
+  `max_tokens`/`overlap_tokens` ints in the core function.
+
+**Rationale / trade-offs.** I picked **pysbd over nltk** primarily on two grounds: nltk's
+`sent_tokenize` requires a **runtime data download** (`punkt`/`punkt_tab`), which is a wart for
+reproducible CI and `docker compose up`, whereas pysbd is pip-only and pure-python; and pysbd
+returns **character spans natively**, which is exactly what `Chunk.char_span` needs (nltk's
+`span_tokenize` also gives spans but keeps the download problem). spaCy's rule-based sentencizer
+avoids a model download too, but pulls a much heavier dependency for a job pysbd does in one
+class. pysbd also handles abbreviations (`Dr.`, `p.m.`, `Jan.`) well, which matters for the
+legal/policy corpora in scope. For the **token counter** I deliberately kept the Phase-1 default
+**offline**: `tiktoken` downloads a vocab file on first use and the real bge tokenizer needs
+transformers/torch (a Phase-2 dependency), and unit tests must be hermetic (spec §12), so a
+word-based approximation is the honest default — but I made the counter **injectable** so nothing
+about the algorithm changes when the exact tokenizer arrives. The cost is that early token counts
+are approximate and a Phase-2 tokenizer swap will re-chunk (new `chunk_id`s, a one-time cache
+miss) — acceptable this early, and flagged. The **overlap guard** is the subtle part and came out
+of verification: an unguarded backup could emit a chunk wholly contained in the previous one (and
+then fail to overlap the next), wasting an LLM extraction call on redundant text; the guard makes
+every chunk cover new ground. I take explicit int params in `chunk_section` (not a whole
+`Settings`) so the core algorithm is trivially unit-testable without constructing config, while
+`chunk_document` still offers the `settings`-driven convenience the orchestrator will use. I
+dropped a hard `min` knob to avoid unused/misleading config (an anti-pattern the spec warns
+against). What I gave up overall: exact token accounting now, and richer overlap at a few
+big-sentence boundaries — both minor next to a deterministic, offline, dependency-light chunker
+whose offsets are correct by construction.
+
+**Addendum — pysbd warning filter.** pysbd's own source uses invalid regex escape sequences
+(`\s`, `\.` in plain string literals), which emit three `DeprecationWarning`s on import and clutter
+every test run. I added a **narrowly scoped** pytest `filterwarnings` entry —
+`"ignore:invalid escape sequence:DeprecationWarning"` — that silences exactly that message. It is
+message-scoped, not a blanket `DeprecationWarning` ignore, so it cannot hide a deprecation in our
+own code (ruff's `W605` would flag any bad escape we wrote anyway). The alternative (leaving the
+noise, or pinning/patching pysbd) wasn't worth it for a harmless third-party lint issue.
+
+**Proposed by me**, following the spec (§7.1, §11) and D4/D14.

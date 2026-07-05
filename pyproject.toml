@@ -17,6 +17,7 @@ dependencies = [
     "pdfplumber>=0.11",
     "python-docx>=1.1",
     "markdown-it-py>=3.0",
+    "pysbd>=0.3.4",
 ]
 [project.scripts]
 crosscheck = "crosscheck.cli:app"
@@ -94,7 +95,7 @@ init_typed = true
 warn_required_dynamic_aliases = true
 
 [[tool.mypy.overrides]]
-module = ["pdfplumber.*", "docx.*"]
+module = ["pdfplumber.*", "docx.*", "pysbd.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
@@ -103,6 +104,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore:invalid escape sequence:DeprecationWarning",
+]
 addopts = "-ra --strict-markers"
 markers = [
     "integration: end-to-end tests that make real LLM/service calls (needs API keys / Qdrant); skipped by default",
