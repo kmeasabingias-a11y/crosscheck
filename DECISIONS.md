@@ -618,3 +618,67 @@ own code (ruff's `W605` would flag any bad escape we wrote anyway). The alternat
 noise, or pinning/patching pysbd) wasn't worth it for a harmless third-party lint issue.
 
 **Proposed by me**, following the spec (§7.1, §11) and D4/D14.
+
+---
+
+## D18 — Extraction gold set: chunk-text-anchored schema, one-JSON-per-chunk store, span-overlap scorer (2026-07-05)
+
+**Decision.** Stood up the extraction gold set (spec §7.1, §9.2) so claim-extraction quality is
+measured on its own, separate from end-to-end F1. Shape:
+
+- **Schema (`evaluation/extraction_gold.py`).** `GoldChunk{gold_id, source, text, claims}` and
+  `GoldClaim{evidence_quote, polarity, subject?, note?}`. Each gold chunk is **self-contained** —
+  it stores the chunk text verbatim, and each gold claim is anchored by a **verbatim
+  `evidence_quote`** (not raw offsets), which the scorer resolves to a span the same way the
+  extractor notarizes its own quotes (D15). An **empty `claims` list is meaningful**: it asserts
+  the chunk is all non-claims and the extractor should return nothing.
+- **Storage.** One JSON file per chunk under `benchmarks/extraction_gold/chunks/`, loaded by
+  `load_gold_set(dir)` (sorted by filename). A `README.md` documents the labeling protocol.
+  Three hand-labeled starter chunks ship as the format-by-example (positive/negative/quantitative
+  claims, a decontextualization case, and an empty non-claims chunk); the human expands to ~50.
+- **Scorer.** `score_extraction(gold, extracted_by_gold_id, *, overlap_threshold=0.5)` matches
+  each extracted claim to at most one gold claim **in the same chunk** by evidence-span overlap,
+  greedily one-to-one by descending overlap. Overlap is measured as **fraction of the shorter
+  span** (not IoU), so a short extracted quote inside a longer gold quote (or vice versa) still
+  counts as the same claim. Matched pairs are true positives, unmatched extractions false
+  positives, unmatched gold false negatives; **polarity agreement** is tallied among matches;
+  gold quotes not found verbatim are counted as `unresolved_gold` (labeling errors) and excluded.
+  `ExtractionScore` exposes `precision`/`recall`/`f1`/`polarity_accuracy` as properties over the
+  raw counts. The scorer is **LLM-free** (takes already-extracted claims), so it is unit-testable
+  now and reused unchanged by the Phase 6 metrics module. A `to_chunk(gold)` helper builds a
+  `Chunk` (ids namespaced under `gold:`) so the Phase 6 runner can feed the extractor trivially.
+
+**Options considered.**
+- *Gold anchoring:* store the chunk text + verbatim quotes (self-contained) vs. reference live
+  `chunk_id`s from a corpus run.
+- *Storage:* one JSON per chunk vs. a single JSON/JSONL file vs. YAML.
+- *Matching key:* evidence-span overlap vs. exact-quote equality vs. semantic/LLM equivalence.
+- *Overlap metric:* fraction-of-shorter vs. IoU vs. containment-only, and the 0.5 threshold.
+- *What to score:* detection P/R + polarity vs. also scoring subject / atomicity / numeric typing.
+- *Module home:* `evaluation/extraction_gold.py` vs. folding into a future `metrics.py`.
+
+**Rationale / trade-offs.** Anchoring gold to the **stored chunk text** (not a live `chunk_id`)
+makes the set a stable, reproducible artifact: it survives re-chunking (a Phase-2 tokenizer swap
+re-draws chunk boundaries and changes every `chunk_id`, per D17) and can be reviewed and diffed on
+its own. Verbatim `evidence_quote` labeling is far easier for a human than typing offsets, and it
+lets the scorer derive spans by the same substring-locate the extractor uses — so gold and
+prediction are compared in one consistent coordinate system. **One JSON per chunk** matches the
+existing `DiskClaimCache` "one file per unit" style, gives clean per-chunk diffs as the set grows
+to ~50, and lets the labeler add one file at a time; I rejected YAML (a dependency, and JSON round-
+trips pydantic for free) and a single mega-file (noisy diffs, merge pain). **Span overlap** is the
+only matching key that is both objective and deterministic — exact-quote equality is too brittle
+(the extractor may quote a slightly different span for the same fact) and semantic matching needs
+an LLM (non-deterministic, and it would make the gold scorer depend on the very thing it audits).
+**Fraction-of-shorter** overlap (verified: a partial quote inside a gold quote matches) tolerates
+quote-length differences better than IoU, which unfairly penalizes a correct-but-shorter quote;
+0.5 is a sane default and is a keyword arg so it can be tuned once real numbers exist. I score
+**detection P/R + polarity** because that is exactly what §7.1 asks ("atomic, decontextualized,
+and correctly typed by polarity"); atomicity and decontextualization are labeling-time properties
+(gold claims are atomic by construction; the `is_decontextualized` heuristic already surfaces the
+decontextualization rate separately, D15), and subject is stored for labeling clarity but not
+scored to avoid brittle string comparisons. Putting it in `evaluation/` (a new package this phase)
+gives the Phase 6 `metrics.py`/`runner.py` a ready import. What I gave up: a fully automatic
+"is this claim atomic" check (genuinely needs human judgment, which is the point of a *gold* set)
+and semantic-equivalence matching (deliberately, for determinism).
+
+**Proposed by me**, following the spec (§7.1, §9.2, §11).

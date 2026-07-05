@@ -1,0 +1,23 @@
+{
+"gold_id": "pto_policy_01",
+"source": "Sample employee handbook — Leave section",
+"text": "All full-time employees receive 20 paid time off days per year. Contractors are not entitled to paid time off. Unused days do not carry over into the following year.",
+"claims": [
+    {
+    "evidence_quote": "All full-time employees receive 20 paid time off days per year.",
+    "polarity": "positive",
+    "subject": "full-time employees",
+    "note": "Atomic quantitative claim (20 days/year)."
+    },
+    {
+    "evidence_quote": "Contractors are not entitled to paid time off.",
+    "polarity": "negative",
+    "subject": "contractors"
+    },
+    {
+    "evidence_quote": "Unused days do not carry over into the following year.",
+    "polarity": "negative",
+    "subject": "unused days"
+    }
+]
+}

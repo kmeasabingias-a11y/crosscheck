@@ -1,0 +1,24 @@
+{
+"gold_id": "vendor_insurance_01",
+"source": "Sample master services agreement — Insurance clause",
+"text": "Vendors must carry liability insurance of at least one million dollars. This requirement is waived for vendors operating under a signed master agreement. All claims must be reported within 30 days.",
+"claims": [
+    {
+    "evidence_quote": "Vendors must carry liability insurance of at least one million dollars.",
+    "polarity": "positive",
+    "subject": "vendors",
+    "note": "Obligation with a numeric threshold."
+    },
+    {
+    "evidence_quote": "This requirement is waived for vendors operating under a signed master agreement.",
+    "polarity": "negative",
+    "subject": "vendors under a master agreement",
+    "note": "Decontextualization: 'This requirement' resolves to the liability-insurance requirement."
+    },
+    {
+    "evidence_quote": "All claims must be reported within 30 days.",
+    "polarity": "positive",
+    "subject": "claims"
+    }
+]
+}
