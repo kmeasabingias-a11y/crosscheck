@@ -462,3 +462,80 @@ since structured output rarely emits extra keys and loud failure surfaces prompt
 early (D10); a per-batch resilience wrapper is noted as a possible later improvement.
 
 **Proposed by me**, following the spec (§4, §7.1, §7.4, §11).
+
+---
+
+## D16 — Document parsers: content-hash `doc_id`, per-page PDF sections, structure-driven MD/DOCX, single-section TXT (2026-07-05)
+
+**Decision.** `ingestion/parsers.py` exposes `parse(path) -> Document` dispatching on the
+lowercased file extension through a `_PARSERS` table (`.pdf`, `.docx`, `.md`/`.markdown`,
+`.txt`/`.text`). Each format parser returns a list of intermediate `_RawSection` tuples
+(`heading`, `text`, `page_span`); a single shared `_assemble()` drops empty sections, computes
+the document id, and stamps section ids — so all id logic lives in one place.
+
+- **`doc_id` is a content hash** of the surviving section text (`ids.doc_id(full_text)`, a new
+  helper alongside `content_hash`). Re-ingesting the same file is idempotent (§4 resume) and
+  byte-identical duplicates collapse to one document rather than being reported as contradicting
+  "themselves". A whitespace-only edit yields a new id — correct, because it *is* a changed doc.
+- **`section_id` is position-based** (`ids.section_id(doc_id, ordinal)`), not heading-derived,
+  because headings repeat, go missing, or change wording.
+- **PDF** → one `Section` per page with a 1-based `page_span`, after a repetition heuristic
+  (`_strip_running_headers_footers`) removes running headers/footers (a non-empty line appearing
+  in the top/bottom 2 lines of ≥50% of pages, min 2 pages) and page-number-only lines (regex).
+  With <3 pages there's too little signal, so only page numbers are stripped. No font-size
+  heading detection.
+- **Markdown** → sections split on headings, using markdown-it-py's block-token **line maps** to
+  slice the verbatim source between one heading and the next. The heading line itself is captured
+  in `Section.heading` and excluded from the body. Title = first heading (else filename stem).
+- **DOCX** → sections split on heading-styled paragraphs (`Heading N` / `Title` / `Subtitle` via
+  a style regex); non-heading paragraphs accumulate as body. Title = first `Title`/`Heading 1`,
+  else the docx core-properties title, else stem.
+- **TXT** → a single section (heading `None`); the chunker does all splitting.
+- Unknown extension → `UnsupportedFormatError(ValueError)`; a missing path → `FileNotFoundError`.
+- **Dependencies added** (D4 follow-through, Phase 1): `pdfplumber`, `python-docx`,
+  `markdown-it-py`. Because `pdfplumber` and `python-docx` ship no type stubs, a
+  `[[tool.mypy.overrides]]` block sets `ignore_missing_imports = true` for `pdfplumber.*` and
+  `docx.*` (markdown-it-py is typed and needs no override).
+
+**Options considered.**
+- *`doc_id` basis:* content hash of the text vs. hash of the file path/filename. **(Raised as a
+  question; the user was away, so this is my recommended default, vetoable.)**
+- *PDF sectioning:* per-page + header/footer stripping vs. font-size heading heuristic vs. one
+  whole-document section. **(Also raised; same status.)**
+- *`section_id` basis:* position/ordinal vs. heading text.
+- *MD body reconstruction:* markdown-it token line-maps to slice the source vs. re-rendering
+  tokens back to text vs. a hand-rolled `#`-prefix line scanner.
+- *TXT structure:* single section vs. blank-line-block splitting vs. heading-line heuristics.
+- *DOCX title:* first heading vs. core-properties title vs. filename stem (chose a fallback
+  chain of all three).
+- *Missing-stub handling:* per-module mypy override vs. inline `# type: ignore` at each import.
+
+**Rationale / trade-offs.** Content-addressing the `doc_id` is the load-bearing call: the whole
+project leans on idempotent, resumable stages (§4), and `ids.py` is already built around content
+hashes, so hashing the document text is the consistent choice — and it gives a real correctness
+win (an accidentally-duplicated file can't manufacture a self-contradiction, and the
+`doc_id != self.doc_id` cross-document retrieval filter stays meaningful). What I gave up is
+human-readable ids and stability across content edits; both are non-issues because `title` and
+`source_path` carry the readable provenance and an edited document *should* be treated as new.
+Position-based `section_id` avoids collisions and `None`-heading gaps that a heading-derived id
+would suffer. For PDFs I deliberately refused font-size heading detection: it's brittle across
+uniform-font, multi-column, and OCR'd-then-flattened PDFs (which §3 doesn't support anyway), and
+one honest `Section` per page with a real `page_span` is robust and gives the judge precise
+provenance; the repetition heuristic is the spec's own suggestion (§7.1) and I kept it
+conservative (only the page edges, a majority threshold, a guard for short docs) so it strips
+boilerplate without eating body text. Using markdown-it's line maps to reconstruct MD bodies
+means the section text is the *verbatim source*, not a lossy re-render — offsets stay honest for
+the downstream evidence-quote check — and it handles ATX and setext headings uniformly. TXT as a
+single section is the honest choice: plain text has no structure to recover, and inventing
+"sections" from blank lines would fabricate provenance. The mypy override is the standard,
+localized way to accept two untyped third-party libs without weakening `--strict` anywhere else
+or scattering ignores. The common `_assemble()` centralizes id assignment so the four parsers
+can't drift in how they hash or number — the same "one definition" discipline as `ids.py` (D14).
+What I gave up overall: some format richness (DOCX tables, nested list semantics, PDF columns)
+in exchange for four small, robust, testable parsers that produce clean `Section`s; richer
+structure can be added behind the same `_RawSection` seam later if a corpus needs it.
+
+**Proposed by me**, following the spec (§3, §7.1). The two flagged sub-decisions (`doc_id`
+scheme = content hash, PDF sectioning = per-page + header/footer stripping) were my
+recommendations; I **confirmed both explicitly on 2026-07-05** after reviewing the options, so
+they are settled rather than provisional.

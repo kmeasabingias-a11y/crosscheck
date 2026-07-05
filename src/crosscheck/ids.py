@@ -30,6 +30,38 @@ def content_hash(text: str) -> str:
     return _digest("content", text)
 
 
+def doc_id(text: str) -> str:
+    """Deterministic id for a document from its full normalized text (spec v2 §4).
+
+    Content-addressed, so re-ingesting the same file yields the same id (idempotent
+    resume) and byte-identical duplicates collapse to one document rather than being
+    reported as contradicting themselves.
+
+    Args:
+        text: The document's full concatenated section text.
+
+    Returns:
+        A stable 16-character hex id.
+    """
+    return _digest("doc", text)
+
+
+def section_id(doc_id: str, ordinal: int) -> str:
+    """Deterministic id for a section from its document id and position.
+
+    Position-based (not heading-based) because headings can repeat, be missing, or
+    change wording; the ordinal is stable for a given parse of a given document.
+
+    Args:
+        doc_id: The section's document id.
+        ordinal: The section's zero-based index within the document.
+
+    Returns:
+        A stable 16-character hex id.
+    """
+    return _digest("section", doc_id, str(ordinal))
+
+
 def chunk_id(doc_id: str, section_id: str, char_span: tuple[int, int]) -> str:
     """Deterministic id for a chunk from its position in the corpus.
 

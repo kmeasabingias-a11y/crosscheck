@@ -1,6 +1,6 @@
 """Unit tests for the deterministic id helpers."""
 
-from crosscheck.ids import chunk_id, claim_id, content_hash
+from crosscheck.ids import chunk_id, claim_id, content_hash, doc_id, section_id
 
 
 def test_ids_are_deterministic_and_short() -> None:
@@ -31,3 +31,15 @@ def test_claim_id_depends_on_offset_and_doc() -> None:
 def test_id_kinds_do_not_collide() -> None:
     # Same leading part, different id kinds -> different digests.
     assert content_hash("x") != claim_id("x", "", (0, 0))
+
+
+def test_doc_id_is_content_addressed() -> None:
+    assert doc_id("same text") == doc_id("same text")
+    assert doc_id("a") != doc_id("b")
+
+
+def test_section_id_depends_on_document_and_position() -> None:
+    base = section_id("docA", 0)
+    assert base == section_id("docA", 0)
+    assert base != section_id("docA", 1)
+    assert base != section_id("docB", 0)
