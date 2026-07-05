@@ -107,7 +107,7 @@ testpaths = ["tests"]
 filterwarnings = [
     "ignore:invalid escape sequence:DeprecationWarning",
 ]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers -m 'not integration'"
 markers = [
     "integration: end-to-end tests that make real LLM/service calls (needs API keys / Qdrant); skipped by default",
     "benchmark: on-demand benchmark/eval runs that write to benchmarks/results/",

@@ -744,5 +744,61 @@ stays in the scratchpad, not the repo.) What I gave up: CI does not exercise the
 composition on every push (only the keyed run does) — an acceptable gap, since each stage is
 unit-tested and the composition is a few lines, and the §12 regression snapshot will close it.
 
+**Addendum (2026-07-06) — deselect integration by default.** Once a real `ANTHROPIC_API_KEY`
+lives in `.env`, the self-skip no longer fires locally, so a plain `uv run pytest` would run the
+live integration test (real spend, ~$0.04, ~40s) on every invocation. Added `-m 'not integration'`
+to `addopts` so a plain run **deselects** it; you opt in explicitly with `uv run pytest -m
+integration`. CI is unaffected (it has no key, so the test was a no-op there either way), and the
+self-skip stays as a second belt-and-braces guard. Verified: plain run → "deselected", `-m
+integration` → selected.
+
 **Proposed by me**, following the spec (§12, Phase 1); the offline-vs-deferred choice is my
 recommendation and is revisitable.
+
+---
+
+## D20 — Whitespace-tolerant evidence-quote location in the claim extractor (2026-07-06)
+
+**Decision.** `claim_extractor._finalize_claim` no longer requires the model's `evidence_quote`
+to be a byte-exact substring of the chunk. A new `_locate_quote(text, quote)` tries an exact
+`str.find` first and, on a miss, falls back to a **whitespace-flexible** regex match — the quote's
+words in order, with each inter-word gap matching `\s+`. It returns the `[start, end)` span of the
+**actual** chunk substring; `_finalize_claim` then stores `chunk.text[start:end]` (the real source
+span, with its real newlines) as `evidence_quote` and derives the offset and `claim_id` from that
+span. A genuine content change (a different or invented word) still fails to match and is dropped
+and counted, exactly as before.
+
+**Why (found by real-LLM inspection, not theory).** Running extraction over the fixture corpus with
+Claude Sonnet 4.6 dropped **3 of 18 otherwise-valid claims (~17%)**. Every drop was the same
+failure: the source wraps a line mid-sentence (`"Shipping fees\nare not refunded."`), the model
+copied the span but normalized the newline to a space (`"Shipping fees are not refunded."`), and the
+exact-substring check rejected it as a hallucination. Whether the model preserves or normalizes the
+newline is non-deterministic, so this was a silent, flaky recall loss in the foundation stage that
+caps the whole system (spec §7.1). The other 15 claims were high quality — decontextualization
+resolved the hard `"This requirement is waived"` case, polarity was correct throughout, and
+quantitatives (`20 days =`, `1000000 USD >=`, `14 business days <=`) were exact — so the fix targets
+exactly this whitespace gap and nothing else.
+
+**Options considered.**
+- Whitespace-flexible regex fallback that returns the real source span (chosen).
+- Normalize both chunk and quote (collapse whitespace) and map the match back to an original offset
+  — same effect, but the offset-mapping is fiddlier and error-prone.
+- Tighten the *prompt* to forbid the model from altering whitespace — unreliable; can't be enforced
+  in code, and the "notarize in code, don't trust the model" principle (D15) says enforce here.
+- Store the model's quote verbatim and loosen only the substring check — rejected: then
+  `evidence_quote` wouldn't equal `chunk.text[offset]`, breaking the downstream grounding invariant
+  the integration test checks (D19).
+
+**Rationale / trade-offs.** The fallback keeps the extractor's "notarize, don't trust" guarantee
+(D15) fully intact — content must still match word-for-word, offsets are still computed in code, and
+the stored quote is still a real verbatim span of the source (now with the correct newline rather
+than the model's space) — while removing a whitespace-only false-negative that was costing ~17% of
+claims. Exact matches are unchanged (tried first, identical offset), so the change is backward
+compatible: the existing `test_extracts_and_finalizes` (exact quote) and `test_rejects_non_verbatim_quote`
+(`"within sixty days"` vs `"within 30 days"` — a real content mismatch) both still pass. What I gave
+up: a sliver of strictness — a quote that differs from the source *only* in whitespace is now
+accepted rather than rejected, which is the entire point. Verified in the mirror (exact match,
+newline-for-space kept with a verbatim source quote, changed-word still dropped, empty quote
+dropped) with a new `test_extractor_wsfix`-style case added to `test_claim_extractor.py`.
+
+**Proposed by me**, after inspecting real extractor output (spec §7.1, §9.2).

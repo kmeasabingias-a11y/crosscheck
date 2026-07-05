@@ -181,3 +181,24 @@ def test_is_decontextualized_heuristic() -> None:
     assert not is_decontextualized("It is required.")
     assert not is_decontextualized("This applies to EU vendors.")
     assert not is_decontextualized("  They must comply.")
+
+
+def test_keeps_quote_with_normalized_whitespace() -> None:
+    # The model copies a real span but normalizes the source's line-wrap newline to a
+    # space; the claim must be kept and anchored to the true source span (D20).
+    chunk = _chunk("Vendor contracts within\nthe EU follow Irish law.")
+    raw = _raw(
+        chunk,
+        text="Vendor contracts within the EU follow Irish law.",
+        quote="Vendor contracts within the EU follow Irish law.",
+    )
+    extractor, _ = _extractor([_response(_ExtractionBatch(claims=[raw]))])
+
+    result = extractor.extract([chunk])
+
+    assert result.rejected_evidence_count == 0
+    assert len(result.claims) == 1
+    claim = result.claims[0]
+    start, end = claim.evidence_offset
+    assert claim.evidence_quote == chunk.text[start:end]  # stored as the real source span
+    assert "\n" in claim.evidence_quote  # keeps the source newline, not the model's space
