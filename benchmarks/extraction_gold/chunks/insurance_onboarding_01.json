@@ -1,0 +1,24 @@
+{
+"gold_id": "insurance_onboarding_01",
+"source": "Employee handbook — Insurance section",
+"text": "The company provides health insurance to all full-time employees. Coverage begins on the first day of employment. Employees must enroll within 30 days of their start date.",
+"claims": [
+    {
+    "evidence_quote": "The company provides health insurance to all full-time employees.",
+    "polarity": "positive",
+    "subject": "full-time employees"
+    },
+    {
+    "evidence_quote": "Coverage begins on the first day of employment.",
+    "polarity": "positive",
+    "subject": "health insurance coverage",
+    "note": "Decontextualization: 'Coverage' resolves to the health insurance from the prior sentence. Temporal claim."
+    },
+    {
+    "evidence_quote": "Employees must enroll within 30 days of their start date.",
+    "polarity": "positive",
+    "subject": "employees",
+    "note": "Obligation with a numeric threshold (30 days)."
+    }
+]
+}

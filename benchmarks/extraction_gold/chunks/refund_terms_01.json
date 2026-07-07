@@ -1,0 +1,34 @@
+{
+"gold_id": "refund_terms_01",
+"source": "Refund Policy",
+"text": "Customers may request a refund within 30 days of purchase. Refund requests must be submitted in writing. Digital goods are non-refundable once downloaded. Shipping fees are not refunded. Approved refunds are issued to the original payment method within 14 business days.",
+"claims": [
+    {
+    "evidence_quote": "Customers may request a refund within 30 days of purchase.",
+    "polarity": "positive",
+    "subject": "customers",
+    "note": "Quantitative (30 days) — numerical-mismatch material."
+    },
+    {
+    "evidence_quote": "Refund requests must be submitted in writing.",
+    "polarity": "positive",
+    "subject": "refund requests"
+    },
+    {
+    "evidence_quote": "Digital goods are non-refundable once downloaded.",
+    "polarity": "negative",
+    "subject": "digital goods"
+    },
+    {
+    "evidence_quote": "Shipping fees are not refunded.",
+    "polarity": "negative",
+    "subject": "shipping fees"
+    },
+    {
+    "evidence_quote": "Approved refunds are issued to the original payment method within 14 business days.",
+    "polarity": "positive",
+    "subject": "approved refunds",
+    "note": "Quantitative (14 business days)."
+    }
+]
+}

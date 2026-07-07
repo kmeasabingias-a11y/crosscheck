@@ -1,0 +1,24 @@
+{
+"gold_id": "governing_law_01",
+"source": "Vendor Agreement — Governing Law section",
+"text": "All contracts are governed by the laws of the State of Delaware. Vendor contracts within the European Union are instead governed by Irish law. Disputes must be resolved through binding arbitration.",
+"claims": [
+    {
+    "evidence_quote": "All contracts are governed by the laws of the State of Delaware.",
+    "polarity": "positive",
+    "subject": "all contracts",
+    "note": "General-case governing law — scope/jurisdiction material."
+    },
+    {
+    "evidence_quote": "Vendor contracts within the European Union are instead governed by Irish law.",
+    "polarity": "positive",
+    "subject": "EU vendor contracts",
+    "note": "Narrows scope to the EU; potential SCOPE_JURISDICTION conflict with the Delaware general rule."
+    },
+    {
+    "evidence_quote": "Disputes must be resolved through binding arbitration.",
+    "polarity": "positive",
+    "subject": "disputes"
+    }
+]
+}
