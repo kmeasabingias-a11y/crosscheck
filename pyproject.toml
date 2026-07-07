@@ -18,6 +18,12 @@ dependencies = [
     "python-docx>=1.1",
     "markdown-it-py>=3.0",
     "pysbd>=0.3.4",
+    "qdrant-client>=1.15",
+    "sentence-transformers>=5.6.0",
+    "fastembed>=0.8.0",
+    # torch is pulled by sentence-transformers; declared here so the CPU-wheel source
+    # pin below binds to it (uv sources only apply to declared deps). See D22.
+    "torch>=2.2",
 ]
 [project.scripts]
 crosscheck = "crosscheck.cli:app"
@@ -29,6 +35,24 @@ dev = [
     "hypothesis>=6.100",
     "ruff>=0.5",
     "mypy>=1.10",
+]
+
+# ---------------------------------------------------------------------------
+# Install torch from the CPU-only wheel index. sentence-transformers pulls torch,
+# whose default Linux wheel bundles the full CUDA stack (~5 GB, ~20 nvidia-* pkgs)
+# that is useless without a GPU. CrossCheck targets commodity hardware (spec §2),
+# so we pin the CPU build. See DECISIONS.md D22.
+# ---------------------------------------------------------------------------
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+# Redirect torch to the CPU index only where that index has wheels (Linux/Windows).
+# macOS torch on PyPI is already CPU-only, so it falls through to the default index.
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 
 [build-system]
@@ -95,7 +119,7 @@ init_typed = true
 warn_required_dynamic_aliases = true
 
 [[tool.mypy.overrides]]
-module = ["pdfplumber.*", "docx.*", "pysbd.*"]
+module = ["pdfplumber.*", "docx.*", "pysbd.*", "sentence_transformers.*", "fastembed.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------

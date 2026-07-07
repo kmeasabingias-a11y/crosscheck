@@ -81,6 +81,33 @@ class Settings(BaseSettings):
     chunk_max_tokens: int = Field(default=400, ge=1)
     chunk_overlap_tokens: int = Field(default=50, ge=0)
 
+    # --- Qdrant storage (Phase 2, spec §7.2) ---
+    # As with the provider keys (D9), also accept the standard QDRANT_URL / QDRANT_API_KEY
+    # names so a Qdrant Cloud deployment's own env vars work unchanged.
+    qdrant_url: str = Field(
+        default="http://localhost:6333",
+        validation_alias=AliasChoices("CROSSCHECK_QDRANT_URL", "QDRANT_URL"),
+    )
+    qdrant_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CROSSCHECK_QDRANT_API_KEY", "QDRANT_API_KEY"),
+    )
+    qdrant_collection: str = "claims"
+    qdrant_timeout_seconds: float = Field(default=30.0, ge=0.0)
+
+    # --- Embeddings (Phase 2, spec §5/§7.2) ---
+    # Dense: bge-large-en-v1.5 (1024-d) via sentence-transformers, cosine. Sparse: BM25 via
+    # fastembed, stored as Qdrant sparse vectors so hybrid retrieval runs in-engine (§7.3).
+    # dense_embedding_model / sparse_model are consumed by the embedder (next Phase-2 file);
+    # dense_vector_size sizes the collection's dense vector here.
+    dense_embedding_model: str = "BAAI/bge-large-en-v1.5"
+    dense_vector_size: int = Field(default=1024, ge=1)
+    sparse_model: str = "Qdrant/bm25"
+    # Instruction prepended to the *query* side only (bge's recommended retrieval setup):
+    # the stored claim is the passage, the claim we search with is the query. Set to "" for
+    # symmetric (s2s) embedding — a knob to revisit when tuning retrieval (spec §9.3).
+    dense_query_instruction: str = "Represent this sentence for searching relevant passages: "
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -802,3 +802,178 @@ newline-for-space kept with a verbatim source quote, changed-word still dropped,
 dropped) with a new `test_extractor_wsfix`-style case added to `test_claim_extractor.py`.
 
 **Proposed by me**, after inspecting real extractor output (spec §7.1, §9.2).
+
+---
+
+## D21 — Qdrant storage foundation: one `claims` collection (dense+sparse), UUID5 point ids, idempotent lifecycle (2026-07-07)
+
+**Decision.** Phase 2 opens with the storage foundation, `storage/qdrant_client.py` (connection +
+collection lifecycle) plus the config it needs. The higher-level CRUD (`ClaimRepo`) is the next
+file; this one owns only the primitives.
+
+- **Client pin.** `qdrant-client>=1.15` (resolves to **1.18.0**), matching the server image already
+  in compose (`qdrant/qdrant:v1.18.2`). Added to `pyproject.toml` runtime deps (D4 follow-through,
+  Phase 2). qdrant-client ships `py.typed`, so `mypy --strict` passes with **no** override needed.
+- **One `claims` collection, two named vectors.** A single collection holds every claim, with a
+  named **dense** vector (`size = dense_vector_size = 1024`, **Cosine** — bge-large-en-v1.5) and a
+  named **sparse** vector configured with **`Modifier.IDF`**. Storing both vectors per point lets
+  hybrid BM25+dense retrieval (spec §7.2/§7.3, the v2 default) run **entirely in-engine** via
+  Qdrant's Query API fusion — no client-side score merging. The sparse vector is generic
+  term-frequency-with-server-side-IDF, so it is agnostic to *which* client-side encoder produces it
+  (that choice is deferred to the embedder file, below).
+- **Payload = the full claim; keyword indexes on `doc_id`, `subject`, `polarity`.** These three are
+  the fields we filter on — above all the cross-document `doc_id != self` filter that runs on every
+  retrieval (§7.3) — so they get explicit payload indexes; the rest of the claim rides in the
+  payload unindexed.
+- **Point id = deterministic UUID5 of `claim_id`.** Qdrant point ids must be an unsigned int or a
+  UUID, but our `claim_id` is a 16-hex digest. `to_point_id(claim_id)` = `uuid5(fixed_namespace,
+  claim_id)`; the original `claim_id` is also kept in the payload so we can look up by our own id.
+  The fixed namespace makes the mapping stable across machines and reruns — required for idempotent
+  upserts and resume (§4).
+- **Idempotent `ensure_collection(client, settings, *, recreate=False)`.** Create-if-absent by
+  default (an interrupted audit resumes against the same store); `recreate=True` drops and rebuilds
+  (destructive — for a clean re-ingest or a dense-size change). Logging: INFO on create, DEBUG when
+  already present, WARNING on a `recreate` drop (§11 log levels).
+- **Config additions.** `qdrant_url` / `qdrant_api_key` (accepting the standard `QDRANT_URL` /
+  `QDRANT_API_KEY` names too, via `AliasChoices`, mirroring the provider-key pattern in D9),
+  `qdrant_collection` (`"claims"`), `qdrant_timeout_seconds` (30). Plus the embedding block:
+  `dense_embedding_model` (`BAAI/bge-large-en-v1.5`), `dense_vector_size` (1024), `sparse_model`
+  (`Qdrant/bm25`) — `dense_vector_size` sizes the collection here; the two model-name settings are
+  consumed by the embedder next. All qdrant fields carry defaults, so the D9 `mypy`
+  `warn_required_dynamic_aliases` friction does not recur (it only fires for *required* aliased
+  fields).
+
+**Options considered.**
+- *Collection layout:* one collection with per-claim dense **and** sparse named vectors vs. two
+  collections (one dense, one sparse) vs. dense-only now + add sparse later.
+- *Sparse config:* `Modifier.IDF` (server computes BM25 IDF) vs. store precomputed BM25 weights with
+  no modifier.
+- *Point id:* UUID5 of `claim_id` vs. `int(claim_id, 16)` as a uint64 vs. a fresh random UUID with
+  `claim_id` only in the payload.
+- *Where `to_point_id` lives:* the storage layer vs. `ids.py`.
+- *Collection lifecycle:* idempotent create-if-absent vs. unconditional `recreate_collection`.
+- *Qdrant env names:* `CROSSCHECK_`-prefixed only vs. also accept standard `QDRANT_URL`/`QDRANT_API_KEY`.
+
+**Rationale / trade-offs.** The load-bearing call is **one collection with both vectors per point**:
+it is exactly what Qdrant's in-engine hybrid fusion (RRF/DBSF over dense+sparse prefetches) expects,
+so §7.3's "hybrid is the default" needs no bespoke merge code — I verified end-to-end against live
+Qdrant 1.18.2 that a dense prefetch + a sparse prefetch fuse under `FusionQuery(RRF)` with the
+`doc_id != self` filter applied. Two separate collections would force client-side score fusion and
+double the filtering/bookkeeping for no gain. **`Modifier.IDF`** means we send plain term-frequency
+sparse vectors and Qdrant applies corpus IDF at query time — real BM25 semantics without us tracking
+global document frequencies ourselves. I chose **UUID5 over `int(claim_id,16)`**: a 64-bit int *is*
+a legal Qdrant id, but round-trips through JSON in some client paths risk precision surprises above
+2^53, whereas a UUID is unambiguous everywhere and still fully deterministic from `claim_id`; a
+random UUID was rejected because a non-derivable point id breaks idempotent re-upsert (the same claim
+would land as a new point on rerun). `to_point_id` lives in the **storage layer, not `ids.py`**,
+because it is a re-encoding of an existing pipeline id to satisfy an *external system's* id format,
+not the birth of a new content-addressed id — `ids.py` stays about the pipeline's own ids (D14).
+**Idempotent `ensure_collection`** (not unconditional recreate) is the whole point of the §4 resume
+story — a re-run must not silently wipe the store; `recreate` is opt-in and loud. Accepting the
+standard `QDRANT_URL`/`QDRANT_API_KEY` names costs nothing and matches D9, so a Qdrant Cloud user's
+existing env works unchanged. What I gave up: nothing structural — the design is the Qdrant-blessed
+hybrid setup, verified live before hand-over.
+
+**Deferred to the embedder file (next), flagged for a decision:** *how* the client produces the
+sparse vector — the spec (§5) suggests **`rank_bm25`**, but rank_bm25 is a standalone Python scorer
+that does **not** emit Qdrant sparse vectors, so it cannot do the in-engine hybrid this collection is
+built for. My recommendation is **`fastembed`'s `SparseTextEmbedding("Qdrant/bm25")`** (a Qdrant-native
+substitution) for sparse and **sentence-transformers `bge-large-en-v1.5`** (spec-prescribed) for
+dense, in a new `storage/embeddings.py` (a small deviation from the spec's two-file storage layout,
+since both storage and retrieval need the encoders). That substitution + module will be recorded as
+its own decision once written and verified.
+
+**Verification.** Copied the repo into the scratchpad mirror, added `qdrant-client`, applied the
+config + module, and ran all four gates (ruff, ruff-format, mypy `--strict` over 30 files, pytest:
+**69 passed** = repo's 65 + 4 new hermetic `test_qdrant_client.py` cases) plus a **live check**
+against the running Qdrant: `to_point_id` deterministic/distinct, collection built with dense
+size-1024/Cosine + sparse IDF, payload indexes on the three fields, `ensure_collection` idempotent on
+the second call, and `recreate=True` dropping+rebuilding to an empty collection.
+
+**Proposed by me**, following the spec (§5, §7.2, §7.3, §11) and D4/D9/D14.
+
+---
+
+## D22 — Embedders: sentence-transformers dense + fastembed BM25 sparse, in `storage/embeddings.py`; CPU-only torch pin (2026-07-07)
+
+**Decision.** The second Phase-2 file, `storage/embeddings.py`, turns claim text into the two
+vectors the `claims` collection holds. Two encoders behind small `Protocol`s, both lazy-loading:
+
+- **Dense = sentence-transformers `BAAI/bge-large-en-v1.5`** (1024-d, cosine) — the spec-prescribed
+  model (§5). `BgeDenseEmbedder` normalizes to unit vectors (`normalize_embeddings=True`) and, on
+  first load, checks the model's real dimension against `dense_vector_size`, raising `EmbeddingError`
+  on a mismatch (a wrong-sized model would silently corrupt the collection).
+- **Sparse = fastembed `SparseTextEmbedding("Qdrant/bm25")`** — a **substitution** from the spec's
+  suggested `rank_bm25` (§5), because rank_bm25 is a standalone scorer that does not emit Qdrant
+  sparse vectors and so cannot feed the in-engine hybrid the collection is built for (D21).
+  `Bm25SparseEmbedder` uses fastembed's `.embed()` for the document/indexing side and `.query_embed()`
+  for the query side; corpus IDF is applied by Qdrant (the collection's `Modifier.IDF`), so nothing
+  here tracks global document frequencies.
+- **Passage vs query split.** Both embedders expose `embed_passages` (indexing) and `embed_query`
+  (retrieval). The dense embedder prepends a **query instruction on the query side only** — bge's
+  recommended asymmetric setup (stored claim = passage, search claim = query) — configurable via the
+  new `dense_query_instruction` setting (default the bge string; `""` disables it for symmetric s2s
+  embedding, a §9.3 tuning knob).
+- **New module = layout deviation.** `storage/embeddings.py` is not in the spec's two-file
+  `storage/` layout (§10), but the encoders are needed by *both* storage (upsert) and retrieval
+  (query), so a shared module is the natural home. A provider-neutral `SparseVector` dataclass
+  (plain `indices`/`values` lists, no numpy or Qdrant types) is the boundary type; the repo converts
+  it to Qdrant's `SparseVector` at the edge.
+- **Lazy + injectable.** Models load on first embed call (importing the module and constructing an
+  embedder stay offline and instant — tests, `--help`, config validation don't pay for a download),
+  and both concrete embedders accept an injected `model=` for hermetic tests.
+- **CPU-only torch pin.** sentence-transformers pulls `torch`, whose default Linux wheel bundles the
+  full CUDA stack (~20 `nvidia-*` packages, **5.1 GB** venv) that is dead weight without a GPU.
+  CrossCheck targets commodity hardware (§2), so `pyproject.toml` declares `torch>=2.2` directly and
+  redirects it to the PyTorch CPU index (`[[tool.uv.index]] pytorch-cpu` + `[tool.uv.sources]`), with
+  a `sys_platform == 'linux' or 'win32'` marker so macOS (already CPU on PyPI) is unaffected. This
+  drops the venv to **1.4 GB** (a 183 MB CPU wheel). Deps added (per D4): `sentence-transformers`,
+  `fastembed`, `torch`; `sentence_transformers.*` and `fastembed.*` added to the mypy
+  `ignore_missing_imports` override (belt-and-braces — they ship partial types, but this keeps CI
+  robust if a runner resolves them without types).
+
+**Options considered.**
+- *Sparse encoder:* fastembed `Qdrant/bm25` vs. the spec's `rank_bm25` vs. a hand-rolled
+  tokenizer + term-frequency sparse vector.
+- *Dense stack:* sentence-transformers (prescribed) vs. fastembed's ONNX bge (would avoid torch).
+- *Module home:* new `storage/embeddings.py` vs. folding the encoders into `claim_repo.py`.
+- *Query instruction:* on (asymmetric s2p) vs. off (symmetric s2s) vs. configurable — and whether to
+  apply it to passages too.
+- *Model lifecycle:* eager load in `__init__` vs. lazy on first use; and injectable model vs. not.
+- *torch wheel:* default (CUDA) vs. CPU-index pin; and declare torch directly vs. leave it transitive.
+- *Sparse boundary type:* a neutral `SparseVector` dataclass vs. returning Qdrant's `SparseVector`
+  vs. raw numpy arrays.
+
+**Rationale / trade-offs.** The **fastembed substitution** is forced by the D21 architecture: the
+whole point of storing a sparse vector per claim is in-engine hybrid fusion, and rank_bm25 simply
+can't produce the vector Qdrant fuses — so following the spec's *letter* here would defeat its own
+§7.3 "hybrid is the default" intent. fastembed is by Qdrant, produces exactly the term-frequency
+sparse vectors the `Modifier.IDF` collection expects, and handles tokenization/stemming/stopwords
+robustly; I keep **sentence-transformers for dense** because it *is* prescribed and torch arrives
+with the Phase-2 reranker anyway, so using fastembed's ONNX bge to dodge torch would buy nothing and
+add a second dense stack. A **new module** beats stuffing encoders into the repo because retrieval
+(a different package) needs the query-side encoders too; a **neutral `SparseVector`** keeps
+embeddings.py free of Qdrant imports so the two layers stay swappable (§7.3's pluggable-strategy
+requirement). **Lazy + injectable** is what keeps the unit tests hermetic (5 new tests inject fakes,
+no 1.3 GB download) while the real path still works — the same "inject the client" pattern as the LLM
+wrapper (D12) and the claim cache (D15). The **query instruction on the query side only**, made
+configurable, follows bge's own guidance while leaving room to test symmetric embedding during Phase-6
+tuning; applying it to passages too would double-count the instruction and is wrong for the indexing
+side. The **CPU torch pin** is not cosmetic — a 5.1 GB vs 1.4 GB venv is the difference between a
+`docker compose up` / CI install that is merely large and one that is punishing, and the platform
+marker keeps the pin from breaking a macOS contributor. Declaring `torch` directly is required for
+uv's source redirect to bind (it only applies to declared deps). What I gave up: a hard dependency on
+the PyTorch CPU index URL (documented, standard), and the theoretical option of a torch-free ONNX-only
+stack (deferred; revisit only if the reranker also turns out not to need torch).
+
+**Verification.** In the mirror: all four gates (ruff, ruff-format, mypy `--strict` over 32 files,
+pytest **74 passed** = 69 + 5 new hermetic `test_embeddings.py`), confirmed the CPU pin (`torch
+2.12.1+cpu`, 0 nvidia packages, venv 5.1 GB → 1.4 GB), probed both library APIs, and ran a **live
+end-to-end check against real Qdrant** — real sentence-transformers (a small stand-in model to avoid
+the 1.3 GB bge download; the code is model-agnostic and dimension-checked) + real fastembed BM25 →
+upsert dense+sparse points → hybrid RRF query with the `doc_id != self` filter, which correctly
+excluded the self-doc and ranked the true PTO-negation partner first, with every sparse index inside
+Qdrant's uint32 range.
+
+**Proposed by me**, following the spec (§5, §7.2, §7.3, §9.3, §11) and D4/D12/D15/D21. The fastembed
+substitution is a deliberate, documented deviation from the spec's `rank_bm25` suggestion.
