@@ -100,6 +100,18 @@ class Pair(CrossCheckModel):
     nli_contradiction_prob: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
+class ScoredClaim(CrossCheckModel):
+    """A stored claim returned by retrieval, paired with its similarity score.
+
+    The score is the retrieval engine's ranking score: a fused RRF score for hybrid
+    search, or the raw dense similarity for the dense-only ablation. Retrieval turns a
+    list of these into :class:`Pair` objects, carrying the score into ``retrieval_score``.
+    """
+
+    claim: Claim
+    score: float
+
+
 class Verdict(CrossCheckModel):
     """The judge's final ruling on one candidate pair."""
 

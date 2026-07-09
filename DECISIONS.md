@@ -977,3 +977,88 @@ Qdrant's uint32 range.
 
 **Proposed by me**, following the spec (§5, §7.2, §7.3, §9.3, §11) and D4/D12/D15/D21. The fastembed
 substitution is a deliberate, documented deviation from the spec's `rank_bm25` suggestion.
+
+---
+
+## D23 — `ClaimRepo`: vector-taking hybrid `search`, typed filter args, `ScoredClaim` result, add missing `storage/__init__.py` (2026-07-09)
+
+**Decision.** The third Phase-2 file, `storage/claim_repo.py`, is the CRUD + retrieval layer over
+the `claims` collection (spec §7.2). It holds the `upsert` / `search` / `get` / `count` surface the
+spec names, backed by the D21 collection and the D22 embedders. Alongside it I added the missing
+`storage/__init__.py` and a small `ScoredClaim` boundary model in `models.py`.
+
+- **`upsert(claims, *, batch_size=128) -> int`.** Embeds each claim's **`text`** (the
+  decontextualized assertion — that is what we search over, not the raw quote) with both embedders,
+  builds a Qdrant `PointStruct` per claim carrying **both** named vectors plus the full claim as
+  payload (`claim.model_dump(mode="json")`), and upserts in batches. The point id is
+  `to_point_id(claim_id)` (D21), so re-upsert **overwrites** rather than duplicating — idempotent,
+  per the §4 resume story. Returns the number written; empty input is a no-op returning 0.
+- **`search(*, dense, sparse=None, exclude_doc_id=None, subject=None, polarity=None, top_k)
+  -> list[ScoredClaim]`.** Takes **pre-computed query vectors**, not text. When `sparse` is given it
+  runs the §7.3 **hybrid** query — a dense prefetch + a sparse prefetch fused in-engine with
+  `FusionQuery(RRF)` — and when it is omitted it runs **dense-only** (the ablation baseline, §9.3).
+  The cross-document `doc_id != self` filter is the first-class `exclude_doc_id` argument; `subject`
+  and `polarity` (the other two indexed fields, D21) are optional typed filters. A private
+  `_build_filter` assembles the Qdrant `Filter` internally.
+- **`get(claim_id) -> Claim | None`** retrieves by the derived point id and rebuilds the claim from
+  payload (`Claim.model_validate`), returning `None` when absent. **`count() -> int`** wraps
+  `client.count`.
+- **`ScoredClaim{claim: Claim, score: float}`** in `models.py` is the search result type — the
+  fused RRF score for hybrid, the raw cosine for dense-only. Retrieval turns these into `Pair`s
+  (`retrieval_score`) next file.
+- **`storage/__init__.py`** added (it was missing — the package worked only via PEP 420 implicit
+  namespace packaging, inconsistent with every other subpackage and a latent wheel-packaging risk).
+
+**Options considered.**
+- *`search` signature:* the spec's literal `search(vector, filters, top_k)` (single dense vector,
+  raw filter object) vs. a hybrid-capable `search(dense, sparse=None, <typed filter args>, top_k)`.
+- *Read-path embedding:* `search` takes pre-computed vectors vs. `search` takes query **text** and
+  embeds internally.
+- *Filter surface:* accept a Qdrant `Filter` across the public boundary vs. expose typed args
+  (`exclude_doc_id` / `subject` / `polarity`) and build the `Filter` inside.
+- *Result type:* a `ScoredClaim` model vs. `list[tuple[Claim, float]]` vs. bare payload dicts.
+- *Where `ScoredClaim` lives:* `models.py` (boundary schemas) vs. `claim_repo.py` (local return).
+- *What text to embed on upsert:* `claim.text` vs. `claim.evidence_quote`.
+- *Batch-size knob:* a method default param vs. a new `Settings` field.
+- *`storage/__init__.py`:* add it vs. keep relying on implicit namespace packaging.
+
+**Rationale / trade-offs.** The load-bearing call is **`search` takes vectors and exposes typed
+filter args**, a deliberate, minimal deviation from the spec's illustrative `search(vector, filters,
+top_k)`. Two reasons. (1) Hybrid is the default (§7.3), so a *single* `vector` param can't express
+the query; the D21 collection is built for in-engine dense+sparse fusion, and the signature has to
+carry both — with `sparse=None` collapsing cleanly to the dense-only ablation (§9.3) so the same
+method serves both without a second code path leaking out. (2) Taking **pre-computed vectors**
+(rather than text) keeps the *retrieval strategy* — which embedders, dense-only vs hybrid, MMR later
+— in the pluggable `crosscheck.retrieval` layer (§7.3's "export a pluggable interface"), and leaves
+`ClaimRepo` a thin, hermetically testable adapter with no query-side policy baked in. The embedders
+still live on the repo because the **indexing** side (`upsert`) genuinely needs them; the
+orchestrator will construct one dense + one sparse embedder and inject the same instances into both
+the repo (upsert) and the retrieval layer (query embedding) so the 1.3 GB bge model loads once.
+**Typed filter args instead of a raw `Filter`** keep Qdrant's types from leaking across the API
+boundary (the §11 "no bare dicts / clean contracts" spirit) and name exactly the three fields the
+collection actually indexes — anything else would be an unindexed filter we don't want to invite.
+**`ScoredClaim` as a model** (not a tuple or dict) honors §11 and self-documents what the score
+means; it lives in `models.py` with the other boundary schemas because retrieval consumes it, the
+same home as `Pair`. I embed **`claim.text`**, not the evidence quote, because the decontextualized
+assertion is the semantic unit retrieval compares (a bare quote can be elliptical); this matches how
+the extractor treats `text` as the claim proper (D15). **Batch size is a method default param**, not
+a `Settings` field — an internal perf detail, and adding config nobody tunes is the anti-pattern D17
+already refused. Adding **`storage/__init__.py`** removes a real inconsistency and a wheel risk for
+the cost of one file. What I gave up: strict fidelity to the spec's illustrative signature — worth
+it, and recorded here as the deviation the spec asks me to log; and a second embedder instance if a
+caller *doesn't* share one — acceptable, since embedders are lazy and injectable.
+
+**Verification.** In the scratchpad mirror: all four gates — ruff, ruff-format, mypy `--strict`
+(clean over **34** files), pytest **82 passed** (the 74 so far + **8** new `test_claim_repo.py`
+cases), zero warnings. The new tests exercise the **full CRUD + hybrid path end-to-end** against a
+real in-process Qdrant via the client's `:memory:` local mode — which I first probed to confirm it
+supports Query-API RRF fusion with filters — using injected fake embedders with deterministic 4-d
+dense and tiny sparse vectors: `upsert`+`count`, upsert idempotency (re-upsert keeps count at 3),
+empty-upsert no-op, `get` round-tripping a full claim (payload → `Claim`, list offset re-coerced to
+a tuple), `get(missing) -> None`, hybrid search excluding the self-doc and ranking the true partner
+first, the dense-only branch returning the same, and a polarity filter narrowing results. Payload
+indexes are a documented no-op in local mode (server-only), silenced with a message-scoped
+`filterwarnings` mark (the D17 pattern); the real indexes are covered by the live check in D21.
+
+**Proposed by me**, following the spec (§7.2, §7.3, §9.3, §11) and D4/D14/D21/D22. The `search`
+signature and `ScoredClaim` location are my recommended defaults and are vetoable.
