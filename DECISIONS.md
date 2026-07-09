@@ -978,6 +978,15 @@ Qdrant's uint32 range.
 **Proposed by me**, following the spec (§5, §7.2, §7.3, §9.3, §11) and D4/D12/D15/D21. The fastembed
 substitution is a deliberate, documented deviation from the spec's `rank_bm25` suggestion.
 
+**Addendum (2026-07-09) — dimension-check method rename.** `BgeDenseEmbedder._get_model` called
+`get_sentence_embedding_dimension()`, which sentence-transformers 5.6 has **deprecated** (renamed to
+`get_embedding_dimension()`, emits a `FutureWarning`). The unit tests didn't catch it because they
+inject a *fake* model; the deprecated call only fires against a *real* sentence-transformers model,
+which the negation retrieval integration test (D26) is the first to load. Switched the call to
+`get_embedding_dimension()` (present in 5.6+, our pinned floor) and renamed the fake's method in
+`test_embeddings.py` to match. Same behavior, no warning. Found by running the real model, not by
+theory — the same lesson as D20.
+
 ---
 
 ## D23 — `ClaimRepo`: vector-taking hybrid `search`, typed filter args, `ScoredClaim` result, add missing `storage/__init__.py` (2026-07-09)
@@ -1227,3 +1236,75 @@ downloaded.
 **Proposed by me**, following the spec (§5, §7.3, §9.3, §11) and D4/D22/D23/D24. The
 sentence-transformers-over-fastembed choice is forced by model availability; the in-memory
 claim-resolution and orchestrator-level on/off ablation are my recommended defaults and are vetoable.
+
+---
+
+## D26 — Negation-pair retrieval benchmark: `NegationPair` set + real-model integration test asserting recall@1, closing Phase 2 (2026-07-09)
+
+**Decision.** Added the negation-sensitivity benchmark and its retrieval test (spec §7.3/§9.2/§12),
+the last Phase-2 retrieval piece. Structure mirrors the extraction gold set (D18): a data schema +
+loader in `evaluation/`, the data under `benchmarks/`, a hermetic unit test, plus a real-model
+integration test.
+
+- **`evaluation/negation.py`.** `ClaimSeed{doc_id, text, polarity}` and `NegationPair{subject,
+  positive, negative}` (pydantic). `load_negation_pairs(path)` parses a JSON list via a
+  `TypeAdapter`. `to_claim_pairs(pairs)` builds `(positive_claim, negative_claim)` real `Claim`s with
+  **deterministic ids namespaced under `neg:`** (so the same seed yields the same `claim_id` whether
+  built for indexing or for partner-lookup); `to_claims` flattens them into the corpus. Only `text`
+  matters to retrieval, so `predicate` is left empty on the synthetic claims.
+- **`benchmarks/negation/negation_pairs.json` + `README.md`.** **8 pairs**, one per distinct subject
+  (insurance, PTO, refunds, termination, data retention, remote work, warranty, subcontracting),
+  positives in `policy_v1`, negatives in `policy_v2`. Each negation is a genuine polarity flip of the
+  same subject, lexically near-identical to its positive.
+- **`tests/integration/test_negation_retrieval.py`** (marked `integration`, deselected by default).
+  Real models: shares one dense + one sparse embedder across the repo (index) and the hybrid strategy
+  (query), upserts the corpus into a `:memory:` Qdrant, and for each pair retrieves the positive's
+  cross-document neighbours (hybrid) then reranks them with the real cross-encoder. **Asserts
+  recall@1** — the true negation partner must be the single best match — with a `0.75` floor.
+- **`tests/unit/test_negation.py`** (hermetic). Validates the committed fixture (≥8 pairs, distinct
+  subjects, cross-document, opposite polarity) and that `to_claim_pairs`/`to_claims` produce valid,
+  unique-id, deterministic, cross-document claims. No models.
+
+**Options considered.**
+- *Assertion metric:* recall@1 (partner is the single best) vs. recall@K (partner in the top-K
+  shortlist).
+- *Fixture selectivity:* one distinct subject per pair (clean) vs. adding near-duplicate distractors
+  to force competition.
+- *Real vs fake models:* a real-model integration test vs. a hermetic test with fake embedders.
+- *Module/data placement:* `evaluation/negation.py` + `benchmarks/negation/` (mirroring D18) vs.
+  test-only fixture + loader.
+- *Data file layout:* a single JSON list vs. one-JSON-per-pair (as the gold set does, D18).
+- *Verification model:* the real bge stack (~3.5 GB) vs. small stand-ins via env override.
+
+**Rationale / trade-offs.** The point of this test is empirical: does the *default hybrid* stack
+actually surface a claim's negation, given that dense embeddings place negations unpredictably
+(§7.3)? That can only be answered with **real models**, so the core deliverable is a real-model
+integration test; the hermetic unit test guards the harness (fixture + id logic) so CI still has cheap
+coverage. I assert **recall@1, not recall@K**, because with a clean one-subject-per-pair fixture the
+cross-document candidate set is tiny (8 negatives), so "in top-K" is trivially true — the discriminating
+question is whether the reranker ranks the *true* negation **above the seven unrelated negatives**,
+which is exactly recall@1. I deliberately kept the fixture **clean (distinct subjects)** rather than
+adding lexical distractors: retrieval's job is to *surface* the partner, not to distinguish negation
+from a near-duplicate non-negation (that is the NLI/judge's job, §7.4), so distractors would test the
+wrong stage. Mirroring **D18's placement** (schema/loader in `evaluation/`, data in `benchmarks/`)
+makes the loader reusable by the Phase-6 metrics module that reports negation recall as its own line
+(§9.2), rather than stranding it in a test. A **single JSON list** (not one-file-per-pair) because the
+negation set is a small, fixed fixture, not an expanding labeling effort like the ~50 gold chunks —
+one file is easier to read whole and the diff noise D18 worried about doesn't apply at this size.
+**Deterministic `neg:`-namespaced ids** are what let the test upsert the flattened corpus and still
+identify each pair's partner by id without threading extra state. What I gave up: the test needs the
+real embedder + reranker (~3.5 GB) on first run, so it is integration-marked and out of CI — I verified
+it with small stand-ins (all-MiniLM-L6-v2 @ 384-d + ms-marco-MiniLM-L-6-v2) via the existing
+`CROSSCHECK_*` model settings, which is also the documented cheap-run path.
+
+**Verification.** In the scratchpad mirror (synced to pushed HEAD): all four gates — ruff, ruff-format,
+mypy `--strict` (clean over **42** files), pytest **99 passed, 2 deselected** (95 + **4** new hermetic
+`test_negation.py`; the 2 deselected are the ingestion + negation integration tests). The **integration
+test was actually run** against real (small stand-in) models on a `:memory:` Qdrant end-to-end — build
+embedders → upsert → hybrid retrieve → cross-encoder rerank → **recall@1 = 1.00 (8/8)**, all eight
+negation partners ranked first, comfortably clearing the 0.75 floor. Running it surfaced the D22
+deprecation (fixed; see the D22 addendum) — the first time a real sentence-transformers model was
+loaded in a test.
+
+**Proposed by me**, following the spec (§7.3, §9.2, §12, §11) and D18/D21/D22/D23/D24/D25. The recall@1
+metric and clean-fixture choice are my recommended defaults and are vetoable.

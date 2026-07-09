@@ -131,7 +131,7 @@ class BgeDenseEmbedder:
             logger.info("loading dense embedding model {!r} (first use)", self._model_name)
             self._model = SentenceTransformer(self._model_name)
         if not self._dim_checked:
-            actual = self._model.get_sentence_embedding_dimension()
+            actual = self._model.get_embedding_dimension()
             if actual != self._configured_dim:
                 raise EmbeddingError(
                     f"dense model {self._model_name!r} produces dimension {actual}, but "

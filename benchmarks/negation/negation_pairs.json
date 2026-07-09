@@ -1,0 +1,106 @@
+[
+{
+    "subject": "vendor liability insurance",
+    "positive": {
+    "doc_id": "policy_v1",
+    "text": "Vendors must carry liability insurance of at least $1,000,000.",
+    "polarity": "positive"
+    },
+    "negative": {
+    "doc_id": "policy_v2",
+    "text": "Vendors are not required to carry liability insurance.",
+    "polarity": "negative"
+    }
+},
+{
+    "subject": "paid time off",
+    "positive": {
+    "doc_id": "policy_v1",
+    "text": "All employees receive 20 paid time off days per year.",
+    "polarity": "positive"
+    },
+    "negative": {
+    "doc_id": "policy_v2",
+    "text": "Employees are not entitled to any paid time off.",
+    "polarity": "negative"
+    }
+},
+{
+    "subject": "refunds",
+    "positive": {
+    "doc_id": "policy_v1",
+    "text": "Customers may request a full refund within 30 days of purchase.",
+    "polarity": "positive"
+    },
+    "negative": {
+    "doc_id": "policy_v2",
+    "text": "All purchases are final and no refunds are provided.",
+    "polarity": "negative"
+    }
+},
+{
+    "subject": "termination notice",
+    "positive": {
+    "doc_id": "policy_v1",
+    "text": "Either party may terminate this agreement with 30 days written notice.",
+    "polarity": "positive"
+    },
+    "negative": {
+    "doc_id": "policy_v2",
+    "text": "This agreement may not be terminated before the end of its term.",
+    "polarity": "negative"
+    }
+},
+{
+    "subject": "data retention",
+    "positive": {
+    "doc_id": "policy_v1",
+    "text": "User data is retained for 12 months after account closure.",
+    "polarity": "positive"
+    },
+    "negative": {
+    "doc_id": "policy_v2",
+    "text": "User data is deleted immediately upon account closure.",
+    "polarity": "negative"
+    }
+},
+{
+    "subject": "remote work",
+    "positive": {
+    "doc_id": "policy_v1",
+    "text": "Employees are permitted to work remotely up to three days per week.",
+    "polarity": "positive"
+    },
+    "negative": {
+    "doc_id": "policy_v2",
+    "text": "All employees must work on-site every business day.",
+    "polarity": "negative"
+    }
+},
+{
+    "subject": "product warranty",
+    "positive": {
+    "doc_id": "policy_v1",
+    "text": "The product is covered by a two-year limited warranty.",
+    "polarity": "positive"
+    },
+    "negative": {
+    "doc_id": "policy_v2",
+    "text": "The product is sold as-is with no warranty.",
+    "polarity": "negative"
+    }
+},
+{
+    "subject": "subcontracting",
+    "positive": {
+    "doc_id": "policy_v1",
+    "text": "The contractor may subcontract work with prior written approval.",
+    "polarity": "positive"
+    },
+    "negative": {
+    "doc_id": "policy_v2",
+    "text": "Subcontracting of any work under this agreement is prohibited.",
+    "polarity": "negative"
+    }
+}
+]

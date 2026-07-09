@@ -29,7 +29,7 @@ class _FakeSTModel:
         self._dim = dim
         self._seen = seen
 
-    def get_sentence_embedding_dimension(self) -> int:
+    def get_embedding_dimension(self) -> int:
         return self._dim
 
     def encode(
