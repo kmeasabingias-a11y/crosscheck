@@ -9,6 +9,7 @@ with Qdrant and per-type NLI-threshold settings.
 """
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -107,6 +108,13 @@ class Settings(BaseSettings):
     # the stored claim is the passage, the claim we search with is the query. Set to "" for
     # symmetric (s2s) embedding — a knob to revisit when tuning retrieval (spec §9.3).
     dense_query_instruction: str = "Represent this sentence for searching relevant passages: "
+
+    # --- Retrieval (Phase 2, spec §7.3) ---
+    # Candidate generation retrieves the top-K cross-document claims per claim (the reranker
+    # then narrows to a smaller set). Hybrid BM25+dense is the default strategy; "dense" is the
+    # dense-only ablation baseline (§9.3), swappable without touching pair generation.
+    retrieval_top_k: int = Field(default=25, ge=1)
+    retrieval_strategy: Literal["hybrid", "dense"] = "hybrid"
 
 
 @lru_cache

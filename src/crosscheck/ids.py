@@ -88,3 +88,21 @@ def claim_id(doc_id: str, chunk_id: str, evidence_offset: tuple[int, int]) -> st
         A stable 16-character hex id.
     """
     return _digest("claim", doc_id, chunk_id, str(evidence_offset[0]), str(evidence_offset[1]))
+
+
+def pair_id(claim_a_id: str, claim_b_id: str) -> str:
+    """Order-independent id for a candidate pair of claims (spec §7.3).
+
+    The two claim ids are sorted before hashing, so pair (A, B) and pair (B, A) map to the
+    same id — the key that deduplicates reciprocal retrieval hits (B found for A, A found
+    for B) into one pair.
+
+    Args:
+        claim_a_id: One claim's id.
+        claim_b_id: The other claim's id.
+
+    Returns:
+        A stable 16-character hex id, identical regardless of argument order.
+    """
+    first, second = sorted((claim_a_id, claim_b_id))
+    return _digest("pair", first, second)

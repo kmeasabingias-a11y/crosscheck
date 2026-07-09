@@ -1062,3 +1062,87 @@ indexes are a documented no-op in local mode (server-only), silenced with a mess
 
 **Proposed by me**, following the spec (§7.2, §7.3, §9.3, §11) and D4/D14/D21/D22. The `search`
 signature and `ScoredClaim` location are my recommended defaults and are vetoable.
+
+---
+
+## D24 — Candidate pair generation: `CandidateStrategy` Protocol (hybrid default), reciprocal dedup keeping max score, order-independent `pair_id` (2026-07-09)
+
+**Decision.** Opened Phase-2 *retrieval* with `retrieval/candidate_gen.py` (+ `retrieval/__init__.py`),
+which turns the stored claims into deduplicated cross-document `Pair` candidates (spec §7.3). Also
+added `pair_id` to `ids.py` (deferred since D14) and two `Settings` fields.
+
+- **Pluggable `CandidateStrategy` Protocol** — `neighbors(claim, *, top_k) -> list[ScoredClaim]`.
+  Two concrete strategies: **`HybridStrategy`** (embeds the query claim dense **and** sparse, calls
+  `ClaimRepo.search(dense=, sparse=, exclude_doc_id=claim.doc_id, top_k=)` → in-engine RRF) is the
+  **default** (§7.3); **`DenseStrategy`** (dense only) is the §9.3 ablation baseline. A
+  `build_candidate_strategy(repo, settings, *, dense_embedder=None, sparse_embedder=None)` factory
+  `match`es on `settings.retrieval_strategy` and shares the embedder instances (so bge loads once);
+  MMR is left as a future `CandidateStrategy` implementation, not built (no unused code, D17).
+- **The query is embedded in the retrieval layer, not the store** — the strategies hold the
+  query-side embedders and pass vectors into `ClaimRepo.search`, exactly the split D23 set up (the
+  store's read side takes vectors; strategy lives one layer up).
+- **`generate_candidate_pairs(claims, strategy, *, top_k) -> list[Pair]`** iterates the corpus,
+  gets each claim's cross-document neighbours, and **deduplicates reciprocal hits** (B found for A,
+  A found for B) into one `Pair` keyed by `pair_id`, **keeping the higher retrieval score** of the
+  two directions. Claim ids are **sorted** so `claim_a_id`/`claim_b_id` are canonical regardless of
+  direction; a defensive self-pair guard drops any `neighbor_id == claim_id`. Output is sorted by
+  descending `retrieval_score`, ties broken by `pair_id`, so the result is deterministic.
+- **`pair_id(claim_a_id, claim_b_id)`** in `ids.py` — sorts the two ids, then `_digest("pair", …)`;
+  order-independent by construction, same 16-hex/kind-tagged scheme as the other ids (D14).
+- **Config:** `retrieval_top_k = 25` (spec §7.3) and `retrieval_strategy: Literal["hybrid","dense"]
+  = "hybrid"`. `retrieval_top_k` is an explicit param to the core function (not read from settings
+  inside it), keeping the algorithm unit-testable without config (the D17 pattern); the orchestrator
+  passes `settings.retrieval_top_k`.
+
+**Options considered.**
+- *Strategy shape:* a `Protocol` with concrete `Hybrid`/`Dense` classes vs. a single function with a
+  `use_sparse: bool` flag vs. an enum dispatch.
+- *Where the query is embedded:* in the strategy (retrieval layer) vs. inside `ClaimRepo.search`.
+- *Build MMR now* vs. leave the interface open and ship only hybrid + dense.
+- *Reciprocal dedup score:* keep the **max** of the two directions vs. first-seen vs. average.
+- *Pair id ordering:* sort the two claim ids (canonical `a`/`b`) vs. keep query→neighbour direction
+  and dedup on a `frozenset`.
+- *`retrieval_top_k`:* explicit function arg vs. read from `Settings` inside `generate_*`.
+- *`match` exhaustiveness:* trailing `assert_never` vs. rely on mypy's Literal narrowing vs. a
+  `case _:` raise.
+- *Factory embedders:* required shared instances vs. optional with `build_*` fallback (as in D23).
+
+**Rationale / trade-offs.** The **Protocol + two classes** is the load-bearing call: §7.3 explicitly
+wants retrieval strategies swappable for evaluation, and while hybrid-vs-dense today is *almost* just
+"do we pass a sparse vector," MMR (and future strategies) are genuinely different algorithms, so the
+seam belongs at the strategy level, not a boolean flag — and it keeps `generate_candidate_pairs`
+strategy-agnostic. Embedding the query **in the strategy** (not the store) is the direct consequence
+of D23: `ClaimRepo.search` takes vectors so the store stays a thin adapter, which means *someone*
+above it must embed, and the strategy is the natural owner because *which* vectors to compute (dense
+only vs dense+sparse) **is** the strategy. I did **not** build MMR — shipping hybrid + dense cleanly
+now and leaving MMR as a documented future `CandidateStrategy` avoids unused code (D17) while the
+interface already admits it. **Keeping the max score** on a reciprocal pair is the honest default:
+retrieval is asymmetric (bge's query instruction is applied to the query side only, and RRF ranks
+differ by direction), so a pair that either direction ranked highly is a strong candidate, and the
+max preserves that signal; first-seen would be order-dependent and averaging would dilute a strong
+one-directional hit. **Sorting the two ids** to canonicalise `a`/`b` makes the `Pair` itself
+order-independent (not just the dedup key), so downstream stages and snapshots see a stable pair
+regardless of which claim was the query — cleaner than deduping on a `frozenset` while leaving
+`a`/`b` arbitrary. `retrieval_top_k` as an **explicit arg** keeps the core loop testable without
+constructing `Settings`, the same discipline as `chunk_section` (D17). `assert_never` after the
+`match` both satisfies mypy's missing-return check and gives a loud runtime guard if an unvalidated
+value ever reaches it (verified: mypy clean; it is the first `match` statement in the codebase). The
+factory mirrors D23 — embedders optional with a `build_*` fallback — so the orchestrator shares one
+dense + one sparse instance across the repo and the strategy, but a quick script still works with no
+wiring. What I gave up: a second embedder load if a caller forgets to share (same acceptable
+footgun as D23, and the factory's docstring says to share); and MMR now (deferred, cheaply added
+later behind the same Protocol).
+
+**Verification.** In the scratchpad mirror (re-synced to the pushed HEAD): all four gates — ruff,
+ruff-format, mypy `--strict` (clean over **37** files), pytest **89 passed** (the 82 so far + **7**
+new: 1 `pair_id` order-independence case + 6 `test_candidate_gen.py`), zero warnings. The
+candidate-gen tests cover both layers: the dedup/sort/self-skip logic of `generate_candidate_pairs`
+against a *fake* strategy with canned neighbours (reciprocal A↔B collapses to one pair at the max
+score 0.90; a self-hit is skipped; pairs come back score-descending), and the real `HybridStrategy`
+/ `DenseStrategy` + factory against a real in-process Qdrant (`:memory:`) with the D23 fake
+embedders — the cross-doc PTO pair is generated, no same-document pair is ever produced, and the
+factory returns the class named by `retrieval_strategy`.
+
+**Proposed by me**, following the spec (§7.3, §9.3, §11) and D4/D14/D17/D22/D23. Building only
+hybrid+dense now (MMR deferred) and keeping the max reciprocal score are my recommended defaults and
+are vetoable.

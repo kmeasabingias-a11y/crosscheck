@@ -1,6 +1,6 @@
 """Unit tests for the deterministic id helpers."""
 
-from crosscheck.ids import chunk_id, claim_id, content_hash, doc_id, section_id
+from crosscheck.ids import chunk_id, claim_id, content_hash, doc_id, pair_id, section_id
 
 
 def test_ids_are_deterministic_and_short() -> None:
@@ -43,3 +43,9 @@ def test_section_id_depends_on_document_and_position() -> None:
     assert base == section_id("docA", 0)
     assert base != section_id("docA", 1)
     assert base != section_id("docB", 0)
+
+
+def test_pair_id_is_order_independent() -> None:
+    assert pair_id("claimA", "claimB") == pair_id("claimB", "claimA")
+    assert len(pair_id("claimA", "claimB")) == 16
+    assert pair_id("claimA", "claimB") != pair_id("claimA", "claimC")
