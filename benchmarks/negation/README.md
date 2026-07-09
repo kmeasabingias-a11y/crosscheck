@@ -26,21 +26,17 @@ claim and its cross-document `negative`:
 "negative": {"doc_id": "policy_v2", "text": "Vendors are not required to carry liability insurance.",
 "polarity": "negative"}
 }
-```
 
 Rules for a good pair:
-- The `positive` and `negative` must be in **different documents** (`doc_id`) — retrieval filters to
+- The positive and negative must be in different documents (doc_id) — retrieval filters to
 cross-document candidates.
-- They must be a genuine **negation of the same subject**, not merely a numeric variant.
-- Keep each pair's subject **distinct** from the others, so a partner has to be recognised on its own
+- They must be a genuine negation of the same subject, not merely a numeric variant.
+- Keep each pair's subject distinct from the others, so a partner has to be recognised on its own
 merits rather than colliding with another subject's vocabulary.
 
-## Loading
+Loading
 
-`crosscheck.evaluation.negation.load_negation_pairs(path)` parses this file into `NegationPair`
-objects; `to_claim_pairs` / `to_claims` turn the seeds into `Claim`s (deterministic ids namespaced
-under `neg:`) for indexing. The retrieval assertion lives in
-`tests/integration/test_negation_retrieval.py` (real models; run with `-m integration`).
-
-▎ ⚠️ In that README, the fenced json block uses normal triple-backticks — I escaped them above (`json`) only so
-▎ this chat renders. Use plain ```json / ``` when you paste.
+crosscheck.evaluation.negation.load_negation_pairs(path) parses this file into NegationPair
+objects; to_claim_pairs / to_claims turn the seeds into Claims (deterministic ids namespaced
+under neg:) for indexing. The retrieval assertion lives in
+tests/integration/test_negation_retrieval.py (real models; run with -m integration).

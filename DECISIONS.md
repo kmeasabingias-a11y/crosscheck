@@ -1308,3 +1308,66 @@ loaded in a test.
 
 **Proposed by me**, following the spec (§7.3, §9.2, §12, §11) and D18/D21/D22/D23/D24/D25. The recall@1
 metric and clean-fixture choice are my recommended defaults and are vetoable.
+
+---
+
+## D27 — Live-Qdrant storage/retrieval integration test (self-skipping, isolated throwaway collection), closing Phase 2 (2026-07-09)
+
+**Decision.** Added `tests/integration/test_live_qdrant.py`, a committed integration test that runs the
+storage + retrieval path against a **real Qdrant server** (spec §7.2/§7.3/§8/§12) — the one thing the
+`:memory:` unit tests structurally cannot prove. The user chose this over jumping straight to Phase 3.
+
+- **Marked `integration`, self-skips if no server.** It builds the client and calls
+  `get_collections()`; any connection failure → `pytest.skip`. So it is safe under `-m integration`
+  with or without Docker (CI has no server → skip), mirroring the API-key self-skip of the ingestion
+  test (D19).
+- **Isolated throwaway collection, never touches `claims`.** Uses
+  `get_settings().model_copy(update={"qdrant_collection": "crosscheck_itest"})` so it inherits the
+  env-loaded model settings but writes to a dedicated collection; `ensure_collection(recreate=True)`
+  gives a clean slate and a `finally: delete_collection(...)` cleans up.
+- **Asserts what `:memory:` can't.** (1) The payload **indexes actually exist server-side** —
+  `client.get_collection(name).payload_schema` contains `doc_id`/`subject`/`polarity` (`:memory:`
+  no-ops index creation, so this is untested until now). (2) The **server-side subject filter**
+  returns only the matching subject — exercising the payload index, not just the vector search. Plus
+  the standard path on the real wire: upsert/count, `get` round-trip + missing→None, hybrid retrieval
+  applying the cross-document `doc_id != self` filter, and the true partner retrieved.
+- **Real models, small stand-ins for verification** (same `CROSSCHECK_*` override as D26).
+- **Also fixed a paste artifact:** the committed `benchmarks/negation/README.md` had a chat-only
+  "⚠️ … only so this chat renders" note accidentally pasted into it (D26 hand-over); handed over a
+  clean replacement. Harmless (docs, not code) but removed.
+
+**Options considered.**
+- *Server dependency:* self-skip if unreachable vs. hard-fail vs. spin Qdrant up inside the test.
+- *Collection:* an isolated throwaway (`crosscheck_itest`) + delete vs. reuse the real `claims`.
+- *Settings override:* `model_copy(update=...)` vs. constructing a fresh `Settings(...)`.
+- *Whether to build it at all now* vs. folding a live check into the Phase-3/4 end-to-end test.
+
+**Rationale / trade-offs.** The whole point is to cover the gap the `:memory:` tests leave: local mode
+silently no-ops payload indexes (it even warns so), so nothing committed proved the real server accepts
+the index config or that a payload-index-backed filter works — D21/D22 checked this live in dev, but
+those checks weren't committed. This test makes that a standing regression guard. **Self-skip** (not
+hard-fail) keeps one test that is a real check when a server is up and a clean no-op when it isn't,
+so it can live under the same `-m integration` gate as the model tests and never breaks CI. An
+**isolated throwaway collection with teardown** is a safety requirement: an integration test must
+never clobber a developer's real `claims` data, and `recreate=True` also makes it robust to a leftover
+collection from an interrupted run. `model_copy` over a fresh `Settings()` preserves any `CROSSCHECK_*`
+model overrides the runner set (needed for the cheap-model path) while swapping only the collection
+name. I built it now because the user asked to close Phase 2 cleanly before Phase 3; the alternative
+(fold into the Phase-3/4 orchestrator test) is still fine later, but this gives the storage/retrieval
+layer its own focused live guard independent of the judge. What I gave up: the test needs Docker to do
+anything (it skips otherwise), so it is developer-run, not CI-run — acceptable and expected for a
+live-infra test.
+
+**Verification.** In the scratchpad mirror against the **real Qdrant 1.18.2** already running on
+`:6333`: all four gates — ruff, ruff-format, mypy `--strict` (clean over **43** files), pytest
+**99 passed, 3 deselected** (the 3 integration tests: ingestion, negation, live-Qdrant). The live test
+itself **passed against the real server** (10.7s, small stand-in models) — payload schema carried all
+three indexed fields, upsert/count/get/missing worked over the wire, the cross-document filter excluded
+the self-doc, the insurance partner was retrieved, and the server-side `subject="insurance"` filter
+returned exactly the one matching claim. The **self-skip path** was confirmed by pointing
+`CROSSCHECK_QDRANT_URL` at a dead port: the test skipped cleanly with its guidance message. The
+throwaway collection is deleted in `finally`.
+
+**Proposed by me** at the user's direction (they chose the live test over starting Phase 3), following
+the spec (§7.2, §7.3, §8, §12) and D19/D21/D22/D23/D24. The self-skip and isolated-collection choices
+are standard and vetoable.
