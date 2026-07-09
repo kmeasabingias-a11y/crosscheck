@@ -115,6 +115,12 @@ class Settings(BaseSettings):
     # dense-only ablation baseline (§9.3), swappable without touching pair generation.
     retrieval_top_k: int = Field(default=25, ge=1)
     retrieval_strategy: Literal["hybrid", "dense"] = "hybrid"
+    # --- Reranking (Phase 2, spec §7.3, §5) ---
+    # A cross-encoder reads both claims of a candidate pair together and rescoring them; the
+    # top-K survive to the detection stages. bge-reranker-v2-m3 is spec-prescribed (§5) and runs
+    # on the torch already pulled in for the dense embedder (D22), so it adds no new dependency.
+    rerank_model: str = "BAAI/bge-reranker-v2-m3"
+    rerank_top_k: int = Field(default=10, ge=1)
 
 
 @lru_cache

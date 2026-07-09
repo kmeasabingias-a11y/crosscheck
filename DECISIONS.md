@@ -1146,3 +1146,84 @@ factory returns the class named by `retrieval_strategy`.
 **Proposed by me**, following the spec (§7.3, §9.3, §11) and D4/D14/D17/D22/D23. Building only
 hybrid+dense now (MMR deferred) and keeping the max reciprocal score are my recommended defaults and
 are vetoable.
+
+---
+
+## D25 — Reranker: sentence-transformers `CrossEncoder` with the spec-exact bge-reranker-v2-m3 (fastembed can't carry it), `Reranker` Protocol, `rerank_pairs` resolves claim text (2026-07-09)
+
+**Decision.** `retrieval/reranker.py` is the second retrieval file — the precision stage that
+re-scores the candidate `Pair`s from D24 and keeps the top-K for detection (spec §7.3).
+
+- **Backend = sentence-transformers `CrossEncoder("BAAI/bge-reranker-v2-m3")`** — the
+  spec-prescribed model (§5). I first checked whether fastembed's `TextCrossEncoder` could carry it
+  (that would reuse the ONNX stack and touch no torch): it lists `BAAI/bge-reranker-base`,
+  ms-marco-MiniLM, and jina rerankers, but **not** `bge-reranker-v2-m3`. Since `torch` and
+  `sentence-transformers` are already installed for the dense embedder (D22), sentence-transformers
+  gives the **exact spec model with zero new dependencies** and reuses the same runtime — strictly
+  better than switching to a weaker/different model to stay on fastembed.
+- **`Reranker` Protocol** (`score_pairs(pairs: Sequence[tuple[str, str]]) -> list[float]`) with a
+  concrete `CrossEncoderReranker` (lazy model load, injectable `model=` for tests) and a
+  `build_reranker` factory — the exact shape of the embedders (D22), so tests stay hermetic and a
+  different reranker can be swapped behind the interface.
+- **`rerank_pairs(pairs, claims, reranker, *, top_k) -> list[Pair]`** resolves each pair's two claim
+  ids to text via an in-memory `{claim_id: claim}` map built from `claims` (the orchestrator already
+  holds the corpus in memory — no per-pair `ClaimRepo.get` round-trip), scores the `(text_a, text_b)`
+  pairs with the reranker, attaches `rerank_score` to a `model_copy` of each pair, sorts by
+  descending score (ties by `pair_id`), and truncates to `top_k`. A pair naming a claim absent from
+  `claims` raises `RerankError` (a real wiring bug, surfaced loudly). Empty input short-circuits.
+- **Config:** `rerank_model = "BAAI/bge-reranker-v2-m3"` (§5) and `rerank_top_k = 10` (§7.3, "keep
+  top-10"). As with candidate-gen, `top_k` is an explicit `rerank_pairs` argument (unit-testable
+  without `Settings`); the orchestrator passes `settings.rerank_top_k`.
+
+**Options considered.**
+- *Reranker backend:* sentence-transformers `CrossEncoder` (spec-exact model, torch already in) vs.
+  fastembed `TextCrossEncoder` (ONNX, no torch — but it does **not** offer bge-reranker-v2-m3) vs.
+  fastembed with a *different* model (`bge-reranker-base`).
+- *Claim-text source:* pass the in-memory `claims` and build an id→claim map vs. resolve each id via
+  `ClaimRepo.get` vs. carry the full claims on the `Pair`.
+- *Reranker abstraction:* a `Reranker` Protocol + factory (as embedders) vs. a bare function.
+- *Pair mutation:* return `model_copy`-updated pairs vs. mutate the inputs in place.
+- *`(text_a, text_b)` order:* the canonical `a<b` order the pair already carries (D24) vs. some
+  query/passage heuristic.
+- *Unknown claim id:* raise `RerankError` vs. silently drop the pair.
+- *Rerank on/off ablation:* orchestrator-level (skip the stage) vs. a `NoOpReranker`.
+
+**Rationale / trade-offs.** The backend is the load-bearing call, and it turned on a concrete fact:
+fastembed cannot serve the spec's reranker, so the only way to honor §5's `bge-reranker-v2-m3` is
+sentence-transformers — which, crucially, costs **nothing** here because D22 already pulled torch and
+sentence-transformers for the dense embedder. Choosing fastembed would have meant *deviating from the
+spec's model* (to `bge-reranker-base`, an older/weaker reranker) purely to avoid a dependency I
+already have — a bad trade. So this is the rare case where following the spec's model and adding no
+dependency coincide. Passing the **in-memory `claims`** (not `ClaimRepo.get`) keeps rerank a pure,
+fast, hermetically testable transform with no I/O: the orchestrator has the corpus in memory straight
+from extraction, and a few hundred candidate pairs resolve instantly through a dict — a per-pair
+Qdrant fetch would be needless latency and would couple the reranker to the store. The **Protocol +
+factory + lazy/injectable model** mirrors the embedders (D22) so the same hermetic-test story
+applies (a fake CrossEncoder and a fake Reranker, no 2 GB download). I **`model_copy`** rather than
+mutate so the caller's `Pair` list is untouched (the pairs may be inspected or re-used, e.g. for the
+rerank-vs-no-rerank ablation on the same candidate set). I score in the pair's **canonical `a<b`
+order** (already fixed by D24) so reranking is deterministic and reproducible in snapshots; bge
+rerankers are near-symmetric for similar-length claims, so a query/passage heuristic would add
+nondeterminism for no clear gain. An **unknown claim id raises** because it can only mean a wiring
+bug (pairs and claims out of sync), and silent-dropping would hide it. The rerank on/off **ablation
+lives in the orchestrator** (just don't call `rerank_pairs`) rather than a `NoOpReranker` class —
+less code, and §9.3 measures the stage's presence, not a pass-through. What I gave up: ONNX's
+lighter runtime for the reranker (irrelevant — torch is already resident and the reranker sees only
+the post-retrieval shortlist, so CPU cross-encoding cost is small); and the theoretical
+torch-free stack (already abandoned in D22).
+
+**Verification.** In the scratchpad mirror (re-synced to the pushed HEAD): all four gates — ruff,
+ruff-format, mypy `--strict` (clean over **39** files), pytest **95 passed** (the 89 so far + **6**
+new `test_reranker.py`), zero warnings. Before writing, I confirmed against the installed libraries
+that fastembed's `TextCrossEncoder.list_supported_models()` does **not** include bge-reranker-v2-m3,
+and that sentence-transformers 5.6.0 exposes `CrossEncoder.predict(inputs=[(a, b), …])`. The tests
+inject a fake `CrossEncoder` (records the pairs it saw, returns a numpy score array — like the real
+model) to check `CrossEncoderReranker` wiring and float conversion, and a fake `Reranker` with canned
+scores to check that `rerank_pairs` resolves claim ids to the right texts in canonical order, attaches
+`rerank_score`, sorts, truncates to `top_k`, no-ops on empty input, and raises `RerankError` on an
+unknown claim id. The real model is left to the Phase-6 eval / a live check with the reranker
+downloaded.
+
+**Proposed by me**, following the spec (§5, §7.3, §9.3, §11) and D4/D22/D23/D24. The
+sentence-transformers-over-fastembed choice is forced by model availability; the in-memory
+claim-resolution and orchestrator-level on/off ablation are my recommended defaults and are vetoable.
