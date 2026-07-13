@@ -1371,3 +1371,94 @@ throwaway collection is deleted in `finally`.
 **Proposed by me** at the user's direction (they chose the live test over starting Phase 3), following
 the spec (§7.2, §7.3, §8, §12) and D19/D21/D22/D23/D24. The self-skip and isolated-collection choices
 are standard and vetoable.
+
+## D28 — NLI contradiction pre-filter: recall-first keep rule (argmax OR threshold), per-type thresholds with most-permissive fallback, bidirectional scoring, dynamic id2label index; no new dependency (2026-07-13)
+
+**Decision.** Added `src/crosscheck/detection/nli_filter.py` — the cheap NLI pre-screen that sits
+between candidate reranking and the LLM judge (spec §7.4; the two-stage cost-control architecture of
+§4). This is the first file of **Phase 3 (Detection)**. Its shape deliberately mirrors the reranker
+(D25) and embedders (D22): an `NLIScorer` `Protocol` + a `DebertaNLIScorer` (lazy/injectable, default
+`cross-encoder/nli-deberta-v3-base`) + a `build_nli_scorer` factory, plus a pure
+`filter_pairs(pairs, claims, scorer, *, thresholds, default_threshold, type_hints=None)` transform
+that keeps the likely-contradiction pairs and stamps each survivor's `Pair.nli_contradiction_prob`.
+The design carries several sub-decisions:
+
+- **Recall-first keep rule.** A pair survives if contradiction is the NLI **argmax** (top of the three
+  labels) **OR** its contradiction probability clears a threshold. The argmax OR-clause is the recall
+  floor — the spec targets ≥95% recall at this stage and lets the judge recover precision.
+- **Per-type thresholds, most-permissive when the type is unknown (§7.4).** Thresholds are a
+  `dict[ContradictionType, float]` plus a scalar `default_threshold`. The true type isn't known until
+  the judge, so `filter_pairs` uses `min(default, *thresholds.values())` (the most permissive/lowest
+  threshold) unless the caller passes a `type_hints` mapping (pair_id → type) — which the Phase-6
+  calibration harness, which knows the gold type, will use. `nli_thresholds` ships **empty**, so until
+  Phase-6 calibration every pair uses the single default (0.5).
+- **Bidirectional scoring.** NLI is directional, so each pair is scored in **both** orderings `(a,b)`
+  and `(b,a)`; the results are combined by max P(contradiction) and argmax-in-either. This is ~2× the
+  NLI calls but NLI is ~1000× cheaper than the judge, so it's negligible, and it defends recall against
+  NLI's directional asymmetry. **I offered this as vetoable and the user chose to keep it.**
+- **Dynamic contradiction index + manual softmax.** The contradiction label's position is read from
+  the model's `id2label` (not hardcoded to 0), so a differently-ordered NLI model still works; the
+  three logits are turned into probabilities with a small numerically-stable softmax.
+- **Claim text resolved from the in-memory `claims`** (same as the reranker, D25), not the store;
+  `NLIError` on an unknown claim id rather than a silent drop.
+- **Config knobs are explicit params to `filter_pairs`** (`thresholds`/`default_threshold`), not read
+  from `Settings` inside it — the D17/D24/D25 "core is testable without Settings" pattern; the
+  orchestrator passes `settings.nli_thresholds` / `settings.nli_default_threshold`.
+- Config added: `nli_model`, `nli_default_threshold` (0.5), `nli_thresholds` (empty). This also pulled
+  a `from crosscheck.detection.taxonomy import ContradictionType` import into `config.py` (no circular
+  import — `taxonomy.py` imports only stdlib).
+
+**Options considered.**
+- *NLI backend:* sentence-transformers `CrossEncoder` (already resident from D22) vs. fastembed vs. a
+  raw `transformers` pipeline.
+- *Keep rule:* argmax-OR-threshold (recall-first) vs. threshold-only vs. argmax-only.
+- *Directionality:* bidirectional (score both orderings) vs. forward-only (canonical `(a,b)`).
+- *Threshold when type unknown:* most-permissive (min) vs. the scalar default vs. deferring all
+  type-specific thresholds to the judge.
+- *Contradiction index:* read from `id2label` vs. hardcode 0 (the value for nli-deberta-v3-base).
+- *Where thresholds live:* explicit function params vs. read `Settings` inside `filter_pairs`.
+
+**Rationale / trade-offs.** The whole reason this stage exists is cost: a 500-claim corpus yields on
+the order of 10k candidate pairs after retrieval, and judging all of them with the LLM is prohibitive
+(§4). NLI is roughly 1000× cheaper, so its job is to cut ~10k pairs down to a few hundred **without
+dropping real contradictions** — recall is the objective, precision is the judge's job. That single
+fact drives the design. The **argmax OR-clause** guarantees that any pair the model actually calls a
+contradiction survives even if its probability is modest, which is the recall floor the spec asks for.
+**Bidirectional scoring** is the same instinct: NLI genuinely gives different scores depending on
+which claim is the premise, and since the extra call is free relative to the judge, scoring both ways
+removes an arbitrary, silent source of missed contradictions. **Most-permissive-when-unknown** is
+required because the type-specific thresholds only make sense once you know the type, and we don't
+until the judge — so pre-judge we must not let a strict per-type threshold reject a pair we can't yet
+classify; the permissive floor keeps recall up, and the `type_hints` hook lets the calibration harness
+(which *does* know the gold type) exercise the real per-type thresholds in Phase 6. Reading the
+contradiction index from **`id2label`** costs nothing and makes the code correct for any label
+ordering — I confirmed by probe that nli-deberta-v3-base is `{0: contradiction, 1: entailment,
+2: neutral}`, but hardcoding that would silently produce garbage if the model were ever swapped.
+Keeping thresholds as **explicit params** rather than reading `Settings` inside keeps `filter_pairs` a
+pure function that's exact and offline to test — the same pattern as chunking (D17), candidate-gen
+(D24), and the reranker (D25). The **sentence-transformers backend** reuses the torch/ST stack already
+pulled in by D22, so the NLI model adds **no new dependency**. What I gave up: bidirectional doubles
+NLI inference (irrelevant against judge cost); `nli_thresholds` being empty means the per-type logic is
+dormant until Phase 6 (intended — calibration needs the benchmark first).
+
+**Verification.** In the scratchpad mirror re-synced to the pushed HEAD, all four gates: ruff,
+ruff-format, mypy `--strict` (clean over **46** source files), pytest **110 passed, 5 deselected**
+(the 89 prior hermetic tests + **16** new in `test_nli_filter.py`, with the 5 integration tests
+deselected). The new unit tests are fully hermetic: a **fake `NLIScorer`** with a canned
+`(premise,hypothesis) → NLIResult` table exercises the keep/drop logic exactly — argmax keeps a pair
+below threshold, a high probability keeps a non-argmax pair, a low-and-not-argmax pair is dropped, the
+reverse ordering alone can keep a pair and sets the max probability, a `type_hint` applies that type's
+stricter threshold while no-hint uses the permissive floor, empty in → empty out, and an unknown claim
+id raises `NLIError`; a **fake CrossEncoder** (raw logits + `id2label`) confirms `DebertaNLIScorer`
+finds the contradiction index dynamically (including a non-standard label order), softmaxes correctly,
+and raises when no contradiction label exists. Separately, the opt-in real-model test
+(`tests/integration/test_nli_real.py`, marked `integration`) was run earlier against the real
+`nli-deberta-v3-base` (2 passed, ~13s): it scored "must carry insurance" vs "not required to carry
+insurance" as a high contradiction and an unrelated office-hours claim as low, and `filter_pairs` kept
+the former and dropped the latter. No new dependency (the model loads on the existing ST/torch stack).
+
+**Proposed by me**, following the spec (§7.4, §4) and the established D22/D24/D25 module shape
+(Protocol + lazy/injectable impl + factory + pure transform). The recall-first keep rule, per-type /
+most-permissive thresholds, and dynamic `id2label` index are spec-driven; the **bidirectional-scoring
+default was flagged as my recommendation and explicitly kept by the user** rather than switched to
+forward-only.
