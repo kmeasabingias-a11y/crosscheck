@@ -14,6 +14,8 @@ from typing import Literal
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from crosscheck.detection.taxonomy import ContradictionType
+
 
 class Settings(BaseSettings):
     """Typed, validated runtime configuration for CrossCheck.
@@ -121,6 +123,16 @@ class Settings(BaseSettings):
     # on the torch already pulled in for the dense embedder (D22), so it adds no new dependency.
     rerank_model: str = "BAAI/bge-reranker-v2-m3"
     rerank_top_k: int = Field(default=10, ge=1)
+
+    # --- NLI filter (Phase 3, spec §7.4) ---
+    # A 3-way NLI cross-encoder pre-screens candidate pairs before the (expensive) LLM judge: a
+    # pair is kept if "contradiction" is the top label OR its contradiction probability clears a
+    # threshold. Thresholds are PER contradiction type (§7.4); the type is usually unknown before
+    # the judge, so the filter then uses the most permissive (lowest) threshold. `nli_thresholds`
+    # stays empty until Phase-6 calibration fills it — until then every pair uses the default.
+    nli_model: str = "cross-encoder/nli-deberta-v3-base"
+    nli_default_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    nli_thresholds: dict[ContradictionType, float] = Field(default_factory=dict)
 
 
 @lru_cache
