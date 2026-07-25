@@ -1462,3 +1462,192 @@ the former and dropped the latter. No new dependency (the model loads on the exi
 most-permissive thresholds, and dynamic `id2label` index are spec-driven; the **bidirectional-scoring
 default was flagged as my recommendation and explicitly kept by the user** rather than switched to
 forward-only.
+
+## D29 — LLM judge: reduced `JudgedVerdict` + code-side finalization, whitespace-tolerant evidence substring check, per-pair judging with graceful cost-ceiling stop, resume verdict cache (model-keyed), taxonomy coercion to UNCLEAR (2026-07-14)
+
+**Decision.** Added `src/crosscheck/detection/llm_judge.py` — the final detection stage (spec §7.4),
+which turns each NLI-surviving candidate pair into a structured `Verdict` via the shared cost-tracked
+`LLMClient` (D12). Plus two versioned prompts (`contradiction_judge_system.v1.md`,
+`contradiction_judge_user.v1.md`, per D13), hermetic unit tests, and an opt-in real-model integration
+test. No config change — `judge_model` already existed (D12). The design carries several
+sub-decisions, each mirroring an existing precedent:
+
+- **Reduced LLM schema + code-side finalization** (the extractor pattern, D14/D15). The model returns
+  a `JudgedVerdict` (ruling fields only); code sets `pair_id` from the pair being judged and builds
+  the full `Verdict`. The model never supplies the id.
+- **Substring-validated evidence, whitespace-tolerant** (§7.4; reuses D20). For a claimed
+  contradiction, `evidence_a`/`evidence_b` must be verbatim substrings of the two claims (checked
+  against `claim.text` + `claim.evidence_quote`, both of which the prompt shows). The check tolerates
+  whitespace differences exactly as the extractor's `_locate_quote` does, because Claude normalizes a
+  source's line-wrap newlines to spaces while copying a span verbatim (the D20 lesson) — an exact
+  check would wrongly reject genuine quotes. A contradiction whose evidence isn't found is **dropped
+  and counted** as a judge-hallucination (`hallucination_count` / `hallucination_rate`, §9.2).
+  Non-contradiction verdicts skip evidence validation (there's nothing to substantiate).
+- **Per-pair judging** (not batched). One pair per LLM call, so the cost ceiling and the resume cache
+  are naturally per-pair, evidence validation is per-pair, and one call maps to exactly one verdict.
+- **Graceful cost-ceiling stop** (§4). The `LLMClient` raises `CostCeilingError` before dispatching
+  once spend hits the ceiling; the judge catches it, marks the result `partial=True`, and returns the
+  verdicts gathered so far rather than propagating. This is exactly the §4 "stop dispatching new judge
+  calls, finalize with what it has, mark partial" behavior, located at the judge itself.
+- **Resume verdict cache** (§4; the extractor's cache trio, D14/D15). `VerdictCache` Protocol +
+  `InMemoryVerdictCache` (default) + `DiskVerdictCache` (one JSON per key). Key =
+  `content_hash(judge_model + "\n" + claim_a.text + "\n" + claim_b.text)`. **The judge model is folded
+  into the key** — a deliberate difference from the extractor cache (which is single-model) — so a
+  cross-model eval run (Claude vs GPT-4o judge, §9.3) never serves one model's verdicts for the other.
+- **Taxonomy invariants enforced in code, not just the prompt** (§6). A returned reserved
+  `CONDITIONAL_TRIPLET` is coerced to `UNCLEAR` (with a warning), and a contradiction the model left
+  untyped also becomes `UNCLEAR`, so "every detection carries a valid v1-or-UNCLEAR type" holds
+  regardless of what the model emits.
+- **Returns all verdicts, positive and negative.** The audit report only needs contradictions, but the
+  eval harness (§9.2 precision/recall, calibration) needs the negatives too, so filtering is deferred
+  to aggregation (`JudgeResult.contradictions` is a convenience view).
+
+**Options considered.**
+- *Per-pair vs. batched judging* (several pairs per call to amortize the system prompt).
+- *Cost ceiling*: catch `CostCeilingError` in the judge and return `partial` vs. propagate and let the
+  orchestrator collect incrementally.
+- *Verdict cache*: build it now in the judge vs. defer all resume plumbing to the orchestrator; and
+  whether to fold the judge model into the cache key.
+- *Evidence haystack*: validate against `claim.text` only vs. `text` + `evidence_quote`; exact vs.
+  whitespace-tolerant substring.
+- *Verdict set*: return all verdicts vs. only contradictions.
+- *Untyped/triplet verdicts*: coerce to `UNCLEAR` vs. reject vs. trust the model.
+
+**Rationale / trade-offs.** **Per-pair** wins because the whole two-stage architecture already cut the
+work to a few hundred pairs (§4), so the amortization batching would buy is small — and the system
+prompt is cacheable across calls anyway (the wrapper tracks cache tokens, D12), which recovers most of
+it. In exchange, per-pair gives clean cost-ceiling granularity, per-pair evidence validation, and a
+one-call-one-verdict mapping that batching would muddy (a batched call that hits the ceiling mid-batch,
+or returns a verdict for the wrong pair, is exactly the kind of bug I don't want). **Catching the
+ceiling in the judge** (vs. propagating) is what preserves partial results: propagating before
+returning would throw away the verdicts already computed, whereas the spec wants the report finalized
+"with what it has." **Building the cache now** keeps the most expensive stage's resume support
+co-located with the expensive call, exactly as the extractor does; the `DiskVerdictCache` is the same
+"one JSON per hash in a dir" shape the orchestrator's resume layer will point at, so there's no rework
+— and folding the model into the key is a small correctness fix for the cross-model eval that the
+extractor didn't need. **Validating against `text` + `evidence_quote`** (both shown in the prompt) is
+strictly more lenient than `text` alone and avoids counting a legitimate source-span quote as a
+hallucination, which would pollute the metric; whitespace tolerance is the same D20 defense that
+recovered ~17% of extractor claims. **Returning all verdicts** costs nothing (they're already
+computed) and is required for honest precision/recall and calibration in eval — dropping negatives
+here would blind the metrics. **Coercing to UNCLEAR** enforces the §6 invariant in code so a
+prompt-following lapse can't leak a reserved or missing type downstream. What I gave up: per-pair calls
+mean N HTTP round-trips rather than N/batch (fine at a few hundred pairs, and parallelism can be added
+later if needed); the judge now owns a cache concept (a little more surface in one file, but familiar
+from the extractor). Deferred to later phases, deliberately: **judge temperature** tuning (§8 Phase 6)
+— the `LLMClient.structured` wrapper doesn't expose temperature yet, and adding it is a wrapper change,
+not a judge change, so it waits for the Phase-6 tuning pass; and the **per-document cost cap**
+(`max_document_cost_usd`) stays an orchestrator concern (the judge works over corpus-wide pairs, not
+per-document, and respects the single audit ceiling via the wrapper).
+
+**Verification.** In the scratchpad mirror re-synced to the pushed HEAD (`112194c`), all four gates:
+ruff, ruff-format, mypy `--strict` (clean over **49** source files), pytest **121 passed, 7
+deselected** — the 110 prior tests plus **11** new hermetic `test_llm_judge.py` cases and **2**
+deselected integration tests. The unit tests wrap a real `LLMClient` around a mocked Anthropic client
+(so cost tracking and the ceiling run for real) and feed canned `JudgedVerdict`s: a contradiction is
+finalized with the code-set `pair_id` and preserved type; hallucinated evidence is dropped and counted
+(`hallucination_rate == 1.0`); a negative verdict is kept with no evidence validation and isn't counted
+as a hallucination; `CONDITIONAL_TRIPLET` and a missing type both coerce to `UNCLEAR`; a source-span
+quote and a whitespace-normalized quote are both accepted; the cache serves a repeat pair without a
+second call; a low ceiling stops after one pair with `partial=True` and `llm_call_count == 1` while
+`pair_count == 2`; an unknown claim id raises `JudgeError`; and empty input makes no calls. **The user
+then ran the opt-in real-model test against live Claude (`test_judge_real.py`, 2 passed, ~21s):** the
+real judge flagged the insurance obligation-reversal with a concrete v1 type and evidence that passed
+the substring check (`hallucination_count == 0`), and cleared the unrelated office-hours pair as a
+non-contradiction — confirming the `JudgedVerdict` schema round-trips through the live API and the
+prompt's verbatim-evidence instruction actually holds against real output.
+
+**Proposed by me**, following the spec (§7.4, §4, §6, §9.2) and the established D12/D13/D14/D15/D20
+patterns (single LLM wrapper, versioned prompts, reduced-schema + code-side finalization,
+whitespace-tolerant verbatim check). The two judgment calls I flagged — **including the verdict cache
+now** and **returning all verdicts (not just contradictions)** — were presented with rationale for the
+user to veto; both were kept.
+
+## D30 — Orchestrator: cache-based resume rather than document-skipping, per-document cost cap via a temporary LLM budget, corpus-scaled rerank budget, `AuditResult` instead of an early report (2026-07-25)
+
+**Decision.** Added `src/crosscheck/orchestrator.py` — the `audit()` entry point that runs all eight
+spec §4 stages in sequence (parse → chunk → extract → embed/store → candidate-gen → rerank → NLI
+filter → judge) — plus the supporting changes it needs: a `budget()` context manager and
+`cost_ceiling_usd` property on `LLMClient`, an `audit_state_dir` setting, and the real `crosscheck
+audit` CLI command in place of the Phase-0 stub. This completes Phase 3. The design carries five
+sub-decisions:
+
+- **One `LLMClient` per audit, shared by extraction and the judge.** Both spending stages take the
+  same instance, so they share one `CostTracker` and therefore one ceiling. Separate clients would
+  mean two independent half-ceilings that could together spend double the cap.
+- **Resume means "re-spend no tokens", not "skip documents".** A resumed audit re-parses, re-chunks
+  and re-embeds (all local, all free) but serves extraction from `DiskClaimCache` and judging from
+  `DiskVerdictCache`, both pointed at the audit's state directory, and re-upserts idempotently by
+  `claim_id`. The state directory is keyed by a deterministic `audit_id = content_hash(resolved
+  corpus path)`, so resuming is automatic rather than something the user opts into with a run id. A
+  small `audit_state.json` breadcrumb records how far the last run got.
+- **The per-document cap is enforced by temporarily narrowing the shared client's ceiling.**
+  `with llm.budget(settings.max_document_cost_usd)` around each document's extraction. Both caps
+  therefore raise the same `CostCeilingError`, and the orchestrator tells them apart by comparing
+  spend against the audit ceiling captured before the loop: audit ceiling → stop ingesting and mark
+  the result `partial`; per-document cap → warn, abandon that one document, continue. A non-positive
+  cap means "no cap".
+- **The rerank budget is scaled by corpus size:** `top_k = rerank_top_k * max(1, len(claims))`.
+- **The orchestrator returns an `AuditResult`, it does not build a report.** The result carries the
+  verdicts plus the claims and judged pairs needed to render them, the stage counters, and the cost.
+
+**Options considered.**
+- *Resume*: cache-based (chosen) vs. skipping already-ingested documents, which would need a new
+  "scroll all claims" method on `ClaimRepo` to reload their text for the downstream stages.
+- *Per-document cap*: temporary budget on the shared client (chosen) vs. warn-only after the fact vs.
+  a second `LLMClient` per document vs. leaving `max_document_cost_usd` unused.
+- *Rerank budget*: corpus-scaled (chosen) vs. passing `rerank_top_k` straight through vs. changing
+  `rerank_pairs` to group per claim.
+- *Output*: `AuditResult` now and aggregation in Phase 4 (chosen) vs. building a minimal
+  `ContradictionReport` here.
+- *Store hygiene*: non-destructive upsert plus a warning (chosen) vs. recreating the collection on
+  every audit.
+
+**Rationale / trade-offs.** **Cache-based resume** wins because it targets the thing that actually
+costs money. Only two of the eight stages spend anything, both already had content-hashed disk caches
+from D14/D15 and D29, and pointing them at the state directory buys the whole §4 promise with no new
+machinery. Document-skipping would be strictly stronger, but it would require reaching back into
+finished Phase-2 code to add a bulk-read method to `ClaimRepo` purely to reload claim text that the
+rerank/NLI/judge stages resolve from memory — a lot of new surface to avoid re-doing work that is
+free. What I gave up is stated plainly: a resumed run does re-parse and re-embed. The tests prove the
+part that matters — a second audit of the same corpus makes zero LLM calls and costs $0.0000.
+
+The **per-document cap** needed to be *enforced*, not merely observed. §4 asks for it and §14 lists
+an unbounded audit as an anti-pattern, yet `max_document_cost_usd` had been dead config since Phase 0
+because a per-document cap needs something that knows where one document ends — which no single stage
+does. Narrowing the shared client's ceiling reuses the existing breaker instead of inventing a second
+one, and `budget()` can only ever narrow (`min(previous, spent + limit)`), so no caller can use it to
+buy more room than the audit was given. Warn-only was the cheaper option and I rejected it as not
+being enforcement at all. The honest limitation: the ceiling is checked before a call, not predicted
+from it, so a cap smaller than a single call's cost still permits the first call — the cap bounds how
+far a document can overrun, it doesn't prevent it starting.
+
+The **rerank budget** is the one I'd have shipped wrong without noticing. `rerank_pairs` keeps a
+corpus-wide top-K (D25), while §7.3's "keep top-10" reads naturally as ten *per claim*. Passing
+`rerank_top_k` straight through would have a 500-claim corpus generate thousands of candidates and
+then keep ten in total — the funnel would silently collapse and every stage would still log a
+plausible number. Scaling by claim count keeps the intended budget while letting it pool where the
+cross-encoder found signal (a claim with five real conflicts keeps all five; one with none
+contributes none), and it leaves finished, tested Phase-2 code untouched. The trade-off is that the
+distribution is no longer uniform per claim, which I prefer — but it makes retrieval `K` and this
+multiplier joint tuning knobs for Phase 6.
+
+**Returning `AuditResult`** keeps the Phase 3/4 boundary clean: writing a half-report here would mean
+writing it twice. It carries `claims` and `judged_pairs` because a `Verdict` identifies its pair by
+`pair_id` alone and cannot be rendered without them, and it keeps non-contradiction verdicts because
+precision/recall/calibration (§9.2) are undefined without negatives. Finally, **non-destructive
+upsert plus a `_warn_on_foreign_claims` check** keeps resume cheap without silently mixing corpora:
+recreating by default would wipe the store on every resume, so instead `reset_store=True` is
+available and the orchestrator logs a warning when the collection holds more claims than the current
+corpus produced.
+
+**Empty paths** are treated as ordinary results throughout (§7.5): no files, only unsupported files,
+no claims extracted, and no contradictions all produce a well-formed `AuditResult`. The no-files case
+returns before constructing anything, so auditing an empty directory needs neither an API key nor a
+running Qdrant.
+
+**Provenance.** Mine, following the spec. The eight-stage sequence, both cost caps, the resume
+requirement, and the empty-report path are spec-driven (§4, §7.5). The four judgement calls —
+cache-based resume over document-skipping, `budget()` over warn-only, the corpus-scaled rerank
+budget, and deferring the report to Phase 4 — were my recommendations and were flagged as vetoable at
+hand-over.

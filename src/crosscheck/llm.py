@@ -9,6 +9,8 @@ Phase 1 wires the Anthropic provider (Claude) for claim extraction and judging. 
 OpenAI cross-model provider used by the eval harness (spec §9.1) is added in Phase 5 (D12).
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TypeVar
 
@@ -125,6 +127,39 @@ class LLMClient:
         )
         self.cost = CostTracker()
 
+    @property
+    def cost_ceiling_usd(self) -> float:
+        """The spend cap currently in force (temporarily lowered inside :meth:`budget`)."""
+        return self._ceiling
+
+    @contextmanager
+    def budget(self, limit_usd: float) -> Iterator[None]:
+        """Temporarily cap how much *more* this client may spend inside the block.
+
+        The audit-wide ceiling is the client's own; this narrows it to the stricter of the
+        two, so a single stage — in practice one document's claim extraction — cannot consume
+        the whole audit budget (spec v2 §4's per-document cap). Inside the block, a call that
+        would exceed the tightened cap raises :class:`CostCeilingError` exactly as it would at
+        the audit ceiling; the caller tells the two apart by comparing spend against the audit
+        ceiling it captured beforehand. The previous ceiling is always restored on exit.
+
+        A non-positive ``limit_usd`` means "no extra cap" — the audit ceiling alone applies —
+        so setting the per-document cap to 0 disables it rather than blocking every call.
+
+        Args:
+            limit_usd: Additional spend allowed inside the block, in USD.
+
+        Yields:
+            None; the tightened budget applies for the duration of the block.
+        """
+        previous = self._ceiling
+        if limit_usd > 0:
+            self._ceiling = min(previous, self.cost.total_usd + limit_usd)
+        try:
+            yield
+        finally:
+            self._ceiling = previous
+
     def structured(
         self,
         *,
@@ -180,7 +215,7 @@ class LLMClient:
         )
         if self.cost.total_usd >= self._ceiling:
             logger.warning(
-                "audit cost ceiling ${:.2f} reached after {} calls (spent ${:.4f})",
+                "cost ceiling ${:.2f} reached after {} call(s) (spent ${:.4f})",
                 self._ceiling,
                 self.cost.call_count,
                 self.cost.total_usd,

@@ -9,6 +9,7 @@ with Qdrant and per-type NLI-threshold settings.
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import AliasChoices, Field
@@ -133,6 +134,13 @@ class Settings(BaseSettings):
     nli_model: str = "cross-encoder/nli-deberta-v3-base"
     nli_default_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     nli_thresholds: dict[ContradictionType, float] = Field(default_factory=dict)
+
+    # --- Audit state (Phase 3, spec §4 — resume / idempotency) ---
+    # Root directory for per-audit state: the audit-state breadcrumb plus the on-disk claim and
+    # verdict caches that let a failed audit resume without re-spending tokens. Each audit gets
+    # a subdirectory keyed by its deterministic audit id. Relative paths resolve against the
+    # working directory, so the default keeps audit state next to the corpus being worked on.
+    audit_state_dir: Path = Path(".crosscheck")
 
 
 @lru_cache

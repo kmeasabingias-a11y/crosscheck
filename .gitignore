@@ -19,6 +19,10 @@ htmlcov/
 # Local vector DB storage (docker-compose Qdrant volume)
 qdrant_storage/
 
+# Per-audit resume state: audit-state breadcrumbs plus the claim/verdict caches.
+# These contain extracted source text, so they must never be committed.
+.crosscheck/
+
 # OS
 .DS_Store
 
