@@ -35,6 +35,9 @@ dev = [
     "hypothesis>=6.100",
     "ruff>=0.5",
     "mypy>=1.10",
+    # Writes the PDF fixtures for the parser tests and the acceptance corpus.
+    # Dev-only: nothing in src/ writes PDFs, it only reads them via pdfplumber.
+    "fpdf2>=2.7",
 ]
 
 # ---------------------------------------------------------------------------
@@ -119,7 +122,7 @@ init_typed = true
 warn_required_dynamic_aliases = true
 
 [[tool.mypy.overrides]]
-module = ["pdfplumber.*", "docx.*", "pysbd.*", "sentence_transformers.*", "fastembed.*"]
+module = ["pdfplumber.*", "docx.*", "pysbd.*", "sentence_transformers.*", "fastembed.*", "fpdf.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,70 @@
+{
+  "format": "pdf",
+  "filename": "08_information_security_policy.pdf",
+  "title": "Arden Systems - Information Security Policy v5.2",
+  "running_header": "ARDEN SYSTEMS - INTERNAL - INFORMATION SECURITY POLICY",
+  "sections": [
+    {
+      "page": 1,
+      "heading": "Information Security Policy",
+      "paragraphs": [
+        "Version 5.2, issued by the Office of the Chief Information Security Officer. This policy applies to all Arden Systems personnel, contractors, and to any system that stores or processes Company or customer data."
+      ]
+    },
+    {
+      "page": 1,
+      "heading": "1. Purpose and Scope",
+      "paragraphs": [
+        "This policy sets the minimum security controls for Arden Systems. Every system owner is accountable for applying these controls to the systems they own. Exceptions require written approval from the Chief Information Security Officer and are recorded in the security exception register.",
+        "Compliance is assessed annually by the Security Assurance team."
+      ]
+    },
+    {
+      "page": 1,
+      "heading": "2. Access Control",
+      "paragraphs": [
+        "Access to Company systems is granted on the principle of least privilege. Every account must be traceable to a named individual. Shared accounts are prohibited except for break-glass administrative access, which is held in the corporate vault and audited after every use.",
+        "Access rights are reviewed quarterly by the owning manager. Accounts that have not been used for 90 days are disabled automatically."
+      ]
+    },
+    {
+      "page": 2,
+      "heading": "3. Authentication",
+      "paragraphs": [
+        "Multi-factor authentication is required for all personnel on all systems that are reachable from outside the corporate network. Hardware security keys are the preferred second factor. Short message service codes must not be used as a second factor for administrative accounts.",
+        "All staff must rotate their passwords every 90 days. Passwords must be at least 12 characters long and must not repeat any of the previous 10 passwords. Password managers issued by the Company are mandatory for storing service credentials."
+      ]
+    },
+    {
+      "page": 2,
+      "heading": "4. Device Security",
+      "paragraphs": [
+        "All laptops must have full-disk encryption enabled before they are issued. The approved endpoint detection agent must be installed and reporting. Operating system security updates must be applied within 14 days of release, and within 48 hours where the vulnerability is rated critical.",
+        "Personnel must not disable the endpoint agent or the host firewall."
+      ]
+    },
+    {
+      "page": 3,
+      "heading": "5. Logging and Monitoring",
+      "paragraphs": [
+        "Application and access logs are retained for 90 days. Security-relevant events are forwarded to the central logging platform within five minutes of occurring. Log integrity is protected by write-once storage.",
+        "The Security Operations team monitors alerts 24 hours a day."
+      ]
+    },
+    {
+      "page": 3,
+      "heading": "6. Remote Access",
+      "paragraphs": [
+        "Personnel may access Company systems remotely only from a country on the approved country list maintained by the Security Assurance team. Access from any other country is blocked at the network edge and requires a temporary exception approved in advance.",
+        "All remote access is through the corporate virtual private network."
+      ]
+    },
+    {
+      "page": 3,
+      "heading": "7. Incident Response",
+      "paragraphs": [
+        "Personnel must report a suspected security incident to the Security Operations team within one hour of noticing it. The incident response plan is tested twice a year. Security incident records are retained for five years after the incident is closed."
+      ]
+    }
+  ]
+}

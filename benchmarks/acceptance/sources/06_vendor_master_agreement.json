@@ -1,0 +1,68 @@
+{
+  "format": "docx",
+  "filename": "06_vendor_master_agreement.docx",
+  "title": "Arden Systems - Vendor Master Services Agreement",
+  "sections": [
+    {
+      "heading": "Vendor Master Services Agreement",
+      "paragraphs": [
+        "This Master Services Agreement is entered into between Arden Systems, Inc. (the Company) and the supplier identified in the applicable Order Form (the Vendor). It governs every engagement between the parties unless a signed addendum states otherwise.",
+        "Version 6.0, issued by the Legal department. Effective for all Order Forms signed on or after 1 February 2026."
+      ]
+    },
+    {
+      "heading": "1. Term and Order Forms",
+      "paragraphs": [
+        "This agreement takes effect on the date of the first executed Order Form and continues until terminated. Each Order Form specifies the services, the fees, and the service period. An Order Form may not vary the terms of this agreement unless it refers to the clause it varies.",
+        "The Company is not obliged to purchase any minimum volume of services."
+      ]
+    },
+    {
+      "heading": "2. Charges and Payment",
+      "paragraphs": [
+        "The Vendor invoices monthly in arrears. The Company pays undisputed invoices within 30 days of receipt. Invoices must quote a valid purchase order number or they will be returned unpaid.",
+        "The Company may withhold payment of a disputed amount pending resolution, provided it notifies the Vendor within 15 days of receiving the invoice. Fees are exclusive of value added tax. The Vendor may increase its rates once per year on 60 days written notice."
+      ]
+    },
+    {
+      "heading": "3. Insurance",
+      "paragraphs": [
+        "The Vendor must carry commercial general liability insurance of at least 2 million US dollars for each occurrence. The Vendor must maintain that cover for the duration of the engagement and for two years afterwards.",
+        "The Vendor must provide a certificate of insurance to the Company before services begin, and on each renewal. Failure to maintain the required cover is a material breach of this agreement."
+      ]
+    },
+    {
+      "heading": "4. Subcontracting",
+      "paragraphs": [
+        "The Vendor must not subcontract any part of the services without the prior written consent of the Company. The Vendor remains liable for the acts and omissions of any approved subcontractor as if they were its own.",
+        "The Company may withdraw consent to a subcontractor on 30 days notice."
+      ]
+    },
+    {
+      "heading": "5. Data Protection",
+      "paragraphs": [
+        "The Vendor processes Company data only on documented instructions from the Company. The Vendor deletes all Company production data within 30 days of the end of the engagement and certifies the deletion in writing.",
+        "The Vendor must notify the Company of any personal data breach without undue delay and in any event within 24 hours of becoming aware of it."
+      ]
+    },
+    {
+      "heading": "6. Audit",
+      "paragraphs": [
+        "The Company may audit the Vendor's compliance with this agreement once per calendar year on 30 days notice. The Vendor must give the Company reasonable access to the records, systems, and personnel relevant to the services."
+      ]
+    },
+    {
+      "heading": "7. Governing Law",
+      "paragraphs": [
+        "This agreement is governed by the laws of the State of Delaware. The parties submit to the exclusive jurisdiction of the state and federal courts located in Wilmington, Delaware."
+      ]
+    },
+    {
+      "heading": "8. Termination",
+      "paragraphs": [
+        "Either party may terminate this agreement for convenience on 60 days written notice. Either party may terminate immediately if the other commits a material breach that is not remedied within 30 days of notice.",
+        "Clauses on confidentiality, data protection, and governing law survive termination."
+      ]
+    }
+  ]
+}

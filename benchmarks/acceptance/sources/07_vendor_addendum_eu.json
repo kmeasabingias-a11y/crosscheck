@@ -1,0 +1,58 @@
+{
+  "format": "docx",
+  "filename": "07_vendor_addendum_eu.docx",
+  "title": "Arden Systems - European Vendor Addendum",
+  "sections": [
+    {
+      "heading": "European Vendor Addendum",
+      "paragraphs": [
+        "This addendum applies to the Vendor Master Services Agreement where the Vendor is established in the European Economic Area. It is issued by the Legal department and takes effect on 1 February 2026."
+      ]
+    },
+    {
+      "heading": "1. Application",
+      "paragraphs": [
+        "This addendum applies to every Vendor whose registered office is in a member state of the European Economic Area. It does not apply to Vendors established in the United Kingdom, Switzerland, or the United States.",
+        "Where this addendum and the Master Services Agreement differ, this addendum controls for the Vendors it covers."
+      ]
+    },
+    {
+      "heading": "2. Charges and Payment",
+      "paragraphs": [
+        "The Company pays undisputed invoices from European Vendors within 45 days of receipt. This period reflects the payment terms customary in the relevant markets. All other payment provisions of the Master Services Agreement are unchanged."
+      ]
+    },
+    {
+      "heading": "3. Insurance",
+      "paragraphs": [
+        "European Vendors are exempt from the commercial general liability insurance requirement of the Master Services Agreement. Statutory cover required by the Vendor's own jurisdiction is sufficient.",
+        "The Company may require a specific level of cover in an individual Order Form where the engagement carries unusual risk."
+      ]
+    },
+    {
+      "heading": "4. Subcontracting",
+      "paragraphs": [
+        "European Vendors may subcontract part of the services on 10 days written notice to the Company. The notice must identify the subcontractor and the part of the services concerned. The Vendor remains fully liable for its subcontractors."
+      ]
+    },
+    {
+      "heading": "5. Data Protection",
+      "paragraphs": [
+        "European Vendors retain Company production data for 6 months after the end of the engagement in order to meet statutory record-keeping obligations, and delete it at the end of that period.",
+        "Transfers of personal data outside the European Economic Area are made under the standard contractual clauses adopted by the European Commission."
+      ]
+    },
+    {
+      "heading": "6. Governing Law",
+      "paragraphs": [
+        "Engagements covered by this addendum are governed by the laws of Ireland. The parties submit to the exclusive jurisdiction of the courts of Ireland."
+      ]
+    },
+    {
+      "heading": "7. Precedence",
+      "paragraphs": [
+        "Except as varied by this addendum, the Master Services Agreement remains in full force. Nothing in this addendum affects engagements with Vendors outside the European Economic Area."
+      ]
+    }
+  ]
+}

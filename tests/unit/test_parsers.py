@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from docx import Document as DocxDocument
+from fpdf import FPDF
 
 from crosscheck.ingestion.parsers import (
     UnsupportedFormatError,
@@ -106,3 +107,63 @@ def test_strip_is_conservative_for_few_pages() -> None:
     cleaned = _strip_running_headers_footers(pages)
     # Too few pages to infer a running header, so HEADER stays; page numbers still go.
     assert cleaned[0].splitlines() == ["HEADER", "real content"]
+
+
+def _make_pdf(path: Path, pages: list[str], *, title: str | None = None) -> Path:
+    """Write a simple multi-page PDF, one page per element of `pages`."""
+    pdf = FPDF(format="A4", unit="mm")
+    pdf.set_margins(20, 20, 20)
+    pdf.set_auto_page_break(auto=True, margin=20)
+    if title is not None:
+        pdf.set_title(title)
+    for text in pages:
+        pdf.add_page()
+        pdf.set_font("helvetica", "", 11)
+        pdf.multi_cell(0, 6, text)
+    pdf.output(str(path))
+    return path
+
+
+def test_pdf_makes_one_section_per_page(tmp_path: Path) -> None:
+    p = _make_pdf(
+        tmp_path / "policy.pdf",
+        [
+            "Employees receive 20 PTO days per year.",
+            "Vendors must carry liability insurance.",
+        ],
+    )
+    doc = parse(p)
+    assert doc.metadata["format"] == "pdf"
+    assert doc.metadata["page_count"] == 2
+    assert len(doc.sections) == 2
+    assert doc.sections[0].page_span == (1, 1)
+    assert doc.sections[1].page_span == (2, 2)
+    assert "20 PTO days" in doc.sections[0].text
+    assert "liability insurance" in doc.sections[1].text
+    # PDFs carry no reliable heading markup, so sections are unheaded by design.
+    assert all(section.heading is None for section in doc.sections)
+
+
+def test_pdf_title_prefers_metadata_then_falls_back_to_stem(tmp_path: Path) -> None:
+    titled = _make_pdf(tmp_path / "a.pdf", ["Some body text."], title="Security Policy v5.2")
+    assert parse(titled).title == "Security Policy v5.2"
+
+    untitled = _make_pdf(tmp_path / "handbook_v4.pdf", ["Some body text."])
+    assert parse(untitled).title == "handbook_v4"
+
+
+def test_pdf_strips_running_header_across_pages(tmp_path: Path) -> None:
+    header = "ARDEN SYSTEMS INTERNAL"
+    p = _make_pdf(
+        tmp_path / "standards.pdf",
+        [
+            f"{header}\nPasswords must be at least 14 characters.",
+            f"{header}\nLogs are retained for 13 months.",
+            f"{header}\nRemote access requires a compliant device.",
+        ],
+    )
+    doc = parse(p)
+    body = "\n".join(section.text for section in doc.sections)
+    assert header not in body  # repeated across 3 pages, so stripped
+    assert "14 characters" in body
+    assert "13 months" in body

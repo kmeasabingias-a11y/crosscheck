@@ -1,0 +1,66 @@
+ARDEN SYSTEMS
+REMOTE AND DISTRIBUTED WORK POLICY
+Version 1.3 - Issued by People Operations and Workplace Services
+
+1. PURPOSE
+
+Arden Systems supports distributed work where the role permits it. This policy sets out
+where and how personnel may work outside a company office. It applies to all employees and
+to contractors who have been granted corporate network access.
+
+2. ELIGIBILITY
+
+Any employee whose role does not require physical presence may work remotely on a full-time
+basis. Employees may work remotely five days per week without restriction. Managers may not
+require attendance at an office except for scheduled team events, which are limited to four
+per year.
+
+Roles requiring physical presence include hardware laboratory work, facilities management,
+and reception. Personnel in those roles are not eligible for remote work.
+
+3. LOCATION
+
+Employees may work from any location worldwide provided they have a reliable internet
+connection. Employees who relocate must notify People Operations within 30 days of the
+move so that payroll and tax withholding can be adjusted.
+
+Work from a location outside the employee's country of employment for more than 30
+consecutive days may create a tax presence for the company and must be logged in the
+People Operations portal.
+
+4. EQUIPMENT
+
+The company issues a laptop to every remote worker. Employees may use a personal device for
+company work provided the device has full-disk encryption enabled and an approved endpoint
+agent installed. The company contributes up to 500 US dollars towards home office equipment
+in an employee's first year.
+
+Company-issued equipment remains company property and must be returned within 14 days of
+the termination date.
+
+5. CONNECTIVITY AND SECURITY
+
+Remote workers must connect to company systems through the corporate VPN whenever they
+access internal services. Public wireless networks may be used provided the VPN is active.
+Employees must lock their screen whenever they leave their workstation unattended.
+
+Personnel must not print documents classified as Confidential or Restricted outside a
+company office.
+
+6. WORKING HOURS AND AVAILABILITY
+
+Remote workers keep the standard working hours set out in the Employee Handbook. Employees
+must be reachable on the company messaging platform during core hours of 11:00 to 16:00 in
+their local time zone. Meetings are scheduled to respect the published core hours of all
+participants.
+
+7. EXPENSES
+
+Home internet costs are not reimbursable. Coworking space costs are reimbursable up to 200
+US dollars per month with manager approval. Travel from a remote worker's home to a company
+office is not reimbursable except for scheduled team events.
+
+8. REVIEW
+
+Workplace Services reviews this policy every 12 months. Questions about eligibility should
+be directed to People Operations.
