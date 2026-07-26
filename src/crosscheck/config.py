@@ -75,8 +75,13 @@ class Settings(BaseSettings):
     # Chunks per extraction call, to amortize the system prompt (spec §7.1: batch 3-5).
     extraction_batch_size: int = Field(default=4, ge=1)
     # Output-token budget per chunk in a batch; the call's max_tokens is this times the
-    # batch size (spec §7.1 budgets ~1500 output tokens per chunk).
-    extraction_max_output_tokens_per_chunk: int = Field(default=1500, ge=1)
+    # batch size. The spec (§7.1) suggests ~1500, which the acceptance corpus proved too
+    # low: a dense 400-token policy chunk yields 15-25 claims, and each claim serializes to
+    # ~120-180 output tokens once text, evidence_quote, subject, predicate, conditions,
+    # polarity and quantitative are counted. max_tokens is a cap, not a spend — you are
+    # billed for tokens actually generated — so a generous cap costs nothing and the audit
+    # ceiling still bounds a runaway. See D32.
+    extraction_max_output_tokens_per_chunk: int = Field(default=4000, ge=1)
 
     # --- Chunking (Phase 1) ---
     # Sentence-aware chunks target 200-400 tokens with ~50-token overlap (spec §7.1).

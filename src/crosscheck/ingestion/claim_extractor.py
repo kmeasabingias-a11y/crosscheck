@@ -20,6 +20,7 @@ decontextualization silently poisons every downstream stage.
 import json
 import re
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -28,7 +29,7 @@ from pydantic import Field
 
 from crosscheck.config import Settings
 from crosscheck.ids import claim_id, content_hash
-from crosscheck.llm import LLMClient
+from crosscheck.llm import LLMClient, LLMTruncationError
 from crosscheck.models import Chunk, Claim, CrossCheckModel, Quantitative
 from crosscheck.prompts import load_prompt
 
@@ -69,6 +70,10 @@ class ExtractionResult(CrossCheckModel):
     )
     decontextualization_flags: int = Field(
         default=0, description="Claims that opened with a dangling reference."
+    )
+    truncated_chunk_count: int = Field(
+        default=0,
+        description="Chunks skipped because the model's output stayed truncated after retries.",
     )
 
     @property
@@ -233,6 +238,19 @@ def _finalize_claim(raw: ExtractedClaim, chunk: Chunk) -> Claim | None:
     )
 
 
+# How far the per-chunk output cap may be raised when a single chunk still overflows it.
+_MAX_CAP_MULTIPLIER = 2
+
+
+@dataclass
+class _BatchOutcome:
+    """What one extraction batch produced, after any truncation retries."""
+
+    grouped: dict[str, list[ExtractedClaim]] = field(default_factory=dict)
+    llm_calls: int = 0
+    failed_chunk_ids: set[str] = field(default_factory=set)
+
+
 class ClaimExtractor:
     """Extracts atomic, decontextualized claims from chunks via the LLM.
 
@@ -291,17 +309,85 @@ class ClaimExtractor:
                 cache_hits += 1
 
         llm_calls = 0
+        truncated = 0
         for batch in _batched(pending, self._batch_size):
-            grouped = self._extract_batch(batch)
-            llm_calls += 1
+            outcome = self._extract_with_retry(batch)
+            llm_calls += outcome.llm_calls
+            truncated += len(outcome.failed_chunk_ids)
             for chunk in batch:
-                claims = grouped.get(chunk.chunk_id, [])
+                # A chunk the model could not finish is deliberately left *uncached*.
+                # Caching an empty result would make the loss permanent: every resumed run
+                # would serve zero claims for it from cache and never retry.
+                if chunk.chunk_id in outcome.failed_chunk_ids:
+                    continue
+                claims = outcome.grouped.get(chunk.chunk_id, [])
                 raw_by_chunk[chunk.chunk_id] = claims
                 self._cache.put(content_hash(chunk.text), claims)
 
-        return self._finalize(chunks, raw_by_chunk, cache_hits=cache_hits, llm_calls=llm_calls)
+        return self._finalize(
+            chunks, raw_by_chunk, cache_hits=cache_hits, llm_calls=llm_calls, truncated=truncated
+        )
 
-    def _extract_batch(self, batch: list[Chunk]) -> dict[str, list[ExtractedClaim]]:
+    def _extract_with_retry(self, batch: list[Chunk], *, cap_multiplier: int = 1) -> _BatchOutcome:
+        """Extract one batch, splitting it and retrying when the model's output is truncated.
+
+        A response cut off by the token cap is recoverable: the same chunks fit if fewer of
+        them share a call, or if the cap is raised. So an overflowing batch is halved and
+        each half retried, which degrades one claim-dense chunk to its own call rather than
+        failing every chunk beside it. At a single chunk the cap is doubled once; if that
+        still overflows, the chunk is reported as failed and left uncached so a later run
+        retries it. One pathological chunk can therefore never kill an audit.
+
+        Args:
+            batch: The chunks to extract in one call.
+            cap_multiplier: Multiplier applied to the configured per-chunk output cap.
+
+        Returns:
+            The grouped claims, the number of LLM calls actually made, and the ids of any
+            chunks that could not be extracted.
+        """
+        try:
+            grouped = self._extract_batch(batch, cap_multiplier=cap_multiplier)
+        except LLMTruncationError as exc:
+            if len(batch) > 1:
+                middle = len(batch) // 2
+                logger.warning(
+                    "extractor: output truncated for a batch of {}; splitting and retrying ({})",
+                    len(batch),
+                    exc,
+                )
+                left = self._extract_with_retry(batch[:middle])
+                right = self._extract_with_retry(batch[middle:])
+                return _BatchOutcome(
+                    grouped={**left.grouped, **right.grouped},
+                    llm_calls=1 + left.llm_calls + right.llm_calls,
+                    failed_chunk_ids=left.failed_chunk_ids | right.failed_chunk_ids,
+                )
+            if cap_multiplier < _MAX_CAP_MULTIPLIER:
+                logger.warning(
+                    "extractor: output truncated for chunk {}; retrying at {}x the cap",
+                    batch[0].chunk_id,
+                    cap_multiplier * 2,
+                )
+                retried = self._extract_with_retry(batch, cap_multiplier=cap_multiplier * 2)
+                return _BatchOutcome(
+                    grouped=retried.grouped,
+                    llm_calls=1 + retried.llm_calls,
+                    failed_chunk_ids=retried.failed_chunk_ids,
+                )
+            logger.warning(
+                "extractor: chunk {} still truncated at {}x the cap — skipping it. Its claims "
+                "are lost for this run; it stays uncached so a later run retries it. ({})",
+                batch[0].chunk_id,
+                cap_multiplier,
+                exc,
+            )
+            return _BatchOutcome(llm_calls=1, failed_chunk_ids={batch[0].chunk_id})
+        return _BatchOutcome(grouped=grouped, llm_calls=1)
+
+    def _extract_batch(
+        self, batch: list[Chunk], *, cap_multiplier: int = 1
+    ) -> dict[str, list[ExtractedClaim]]:
         """Call the LLM on one batch and group returned claims by their source chunk id."""
         rendered = self._user_prompt.render(chunks=self._serialize(batch))
         result = self._llm.structured(
@@ -309,7 +395,9 @@ class ClaimExtractor:
             system=self._system_prompt.text,
             user=rendered,
             schema=_ExtractionBatch,
-            max_tokens=len(batch) * self._settings.extraction_max_output_tokens_per_chunk,
+            max_tokens=(
+                len(batch) * self._settings.extraction_max_output_tokens_per_chunk * cap_multiplier
+            ),
         )
         valid_ids = {chunk.chunk_id for chunk in batch}
         grouped: dict[str, list[ExtractedClaim]] = {cid: [] for cid in valid_ids}
@@ -329,6 +417,7 @@ class ClaimExtractor:
         *,
         cache_hits: int,
         llm_calls: int,
+        truncated: int = 0,
     ) -> ExtractionResult:
         """Turn raw extractions into validated Claims and tally observability counters."""
         claims: list[Claim] = []
@@ -354,16 +443,18 @@ class ClaimExtractor:
             llm_call_count=llm_calls,
             rejected_evidence_count=rejected,
             decontextualization_flags=flags,
+            truncated_chunk_count=truncated,
         )
         logger.info(
             "extracted {} claims from {} chunks ({} cache hits, {} llm calls, "
-            "{} rejected quotes, {} decontext flags)",
+            "{} rejected quotes, {} decontext flags, {} truncated chunks)",
             len(claims),
             result.chunk_count,
             cache_hits,
             llm_calls,
             rejected,
             flags,
+            truncated,
         )
         return result
 

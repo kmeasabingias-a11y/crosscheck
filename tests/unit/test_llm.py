@@ -6,10 +6,10 @@ from unittest.mock import MagicMock
 import pytest
 from anthropic import Anthropic
 from anthropic.types import Usage
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from crosscheck.config import Settings
-from crosscheck.llm import CostCeilingError, CostTracker, LLMClient, LLMError
+from crosscheck.llm import CostCeilingError, CostTracker, LLMClient, LLMError, LLMTruncationError
 
 
 class _Out(BaseModel):
@@ -52,3 +52,29 @@ def test_ceiling_blocks_call() -> None:
     )
     with pytest.raises(CostCeilingError):
         client.structured(model="claude-sonnet-4-6", system="s", user="u", schema=_Out)
+
+
+def _validation_error(payload: str) -> ValidationError:
+    """Produce a real pydantic error by validating `payload`, as messages.parse would."""
+    try:
+        _Out.model_validate_json(payload)
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("expected a validation error")
+
+
+def test_truncated_output_raises_truncation_error() -> None:
+    mock = MagicMock()
+    mock.messages.parse.side_effect = _validation_error('{"x": "abc')
+    client = LLMClient(Settings(anthropic_api_key="k"), client=cast(Anthropic, mock))
+    with pytest.raises(LLMTruncationError):
+        client.structured(model="claude-sonnet-4-6", system="s", user="u", schema=_Out)
+
+
+def test_schema_violation_is_not_a_truncation() -> None:
+    mock = MagicMock()
+    mock.messages.parse.side_effect = _validation_error('{"x": "no"}')
+    client = LLMClient(Settings(anthropic_api_key="k"), client=cast(Anthropic, mock))
+    with pytest.raises(LLMError) as caught:
+        client.structured(model="claude-sonnet-4-6", system="s", user="u", schema=_Out)
+    assert not isinstance(caught.value, LLMTruncationError)

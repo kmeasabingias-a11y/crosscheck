@@ -81,6 +81,9 @@ class AuditStats(CrossCheckModel):
     decontextualization_flags: int = Field(
         default=0, description="Claims that opened with a dangling reference (§7.1)."
     )
+    truncated_chunk_count: int = Field(
+        default=0, description="Chunks skipped because extraction output stayed truncated (§7.1)."
+    )
     judge_cache_hits: int = 0
     judge_llm_calls: int = 0
     hallucination_count: int = Field(
@@ -422,6 +425,7 @@ def _ingest(
         stats.extraction_llm_calls += extraction.llm_call_count
         stats.rejected_evidence_count += extraction.rejected_evidence_count
         stats.decontextualization_flags += extraction.decontextualization_flags
+        stats.truncated_chunk_count += extraction.truncated_chunk_count
     logger.info(
         "ingested {} document(s) into {} chunk(s) and {} claim(s)",
         stats.document_count,

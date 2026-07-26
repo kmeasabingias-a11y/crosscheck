@@ -1651,3 +1651,161 @@ requirement, and the empty-report path are spec-driven (§4, §7.5). The four ju
 cache-based resume over document-skipping, `budget()` over warn-only, the corpus-scaled rerank
 budget, and deferring the report to Phase 4 — were my recommendations and were flagged as vetoable at
 hand-over.
+
+## D31 — Acceptance corpus: a fictional 10-document policy set under `benchmarks/acceptance/`, with DOCX/PDF rendered from JSON sources; `fpdf2` added as a dev dependency (2026-07-26)
+
+**Decision.** Built the corpus that unblocks the Phase 3 acceptance smoke test: 10 fictional
+documents for "Arden Systems" covering all four v1 input formats, with 23 conflicts planted across
+all five v1 contradiction types and a set of deliberate cross-document *agreements* to give the run
+precision signal. It also closes the Phase 1 milestone (10 documents → ≥200 claims), since
+`tests/integration/test_ingestion_pipeline.py` already reads `CROSSCHECK_TEST_CORPUS`. Four
+sub-decisions:
+
+- **Fictional, not real public documents.** The corpus is invented rather than drawn from NIST/GDPR/
+  HIPAA texts.
+- **`benchmarks/acceptance/`, not `tests/fixtures/`.** It sits beside the existing `extraction_gold/`
+  and `negation/` eval assets. `tests/fixtures/corpus/` stays the tiny 3-document corpus the fast
+  tests use.
+- **DOCX and PDF are rendered from JSON in a sibling `sources/` directory**, not committed as
+  hand-made binaries and not generated from prose inlined in the build script.
+- **`fpdf2` as a dev dependency**, which also let me close a real coverage hole: `_parse_pdf` had
+  never executed under test.
+
+**Options considered.**
+- *Corpus content*: fictional policy set (chosen) vs. real public documents now vs. both (fictional
+  now + a `fetch_seed_corpus.py` for Phase 5/6).
+- *Location*: `benchmarks/acceptance/` (chosen) vs. `tests/fixtures/acceptance_corpus/`.
+- *Binary documents*: render from JSON sources (chosen) vs. prose inlined in the build script vs.
+  commit hand-made binaries vs. drop PDF/DOCX and ship a Markdown/text-only corpus.
+- *PDF writer*: `fpdf2` (chosen) vs. `reportlab` vs. hand-rolling minimal PDFs vs. leaving
+  `_parse_pdf` untested.
+
+**Rationale / trade-offs.** **Fictional wins on the one thing this corpus is for.** Its job is to
+prove the eight stages are wired together, and "produced a non-empty report" is only an acceptance
+signal if I know in advance what should be in it. Real documents give no such guarantee, and SP
+800-53 at 400+ pages would exhaust the cost ceiling during extraction before the pipeline ever
+reached retrieval. What I gave up is authenticity, and I'm not pretending otherwise — the README
+states the corpus is lexically obvious, non-adversarial, and author-labelled. Real documents keep
+their proper homes: LLM-injected gold labels in Phase 5, and the NIST Rev 4 vs Rev 5 check in
+Phase 6. I declined the "both" option because a seed-corpus fetcher written now would be built
+against guesses about what Phase 5 needs.
+
+**Rendering binaries from JSON sources came out of a failure.** The first version of
+`build_acceptance_corpus.py` carried ~400 lines of document prose inline as Python string literals.
+Transcribing it corrupted the file: one block was pasted five times, three documents' worth of prose
+vanished, and `main()` was lost. Every planted contradiction outside the vendor agreement was gone —
+and because the file still *looked* plausible, it would have produced a near-empty smoke run that I
+might have misread as a detection failure rather than a corpus failure. The fix is structural, not
+clerical: prose is data, so it belongs in data files. The script dropped from ~520 lines to ~120, the
+prose became reviewable in `git diff` instead of buried in string concatenation, and the corruption
+mode disappeared with it. Sources live in a *sibling* directory rather than inside `corpus/` for a
+concrete reason — a source file and its rendered twin inside the audited directory would be parsed as
+two documents and reported as spurious near-duplicate findings.
+
+**`fpdf2` over `reportlab`** because this is fixture generation: pure-Python, no system libraries, a
+small API. `reportlab` offers layout control this doesn't need. Hand-rolling PDFs was rejected on the
+grounds that untested fixture-generation code is a bad foundation for tests. The dependency paid for
+itself immediately: `_parse_pdf` (`parsers.py` 214–229) had zero coverage because nothing in the repo
+could write a PDF — the original Phase 1 verification was done in a throwaway mirror project with
+`reportlab`, so it never left a test behind. Three tests now cover one-section-per-page with correct
+`page_span`s, the metadata-title-then-stem fallback, and running-header stripping on real
+pdfplumber-extracted text. `parsers.py` coverage went 89% → 97% and the suite 131 → 134.
+
+The PDFs are laid out over three pages with a running header and page-number footer on purpose:
+`_strip_running_headers_footers` only infers a running header at three or more pages, so a shorter
+fixture would leave that branch unexercised against real extracted text.
+
+**Provenance.** Mine. The four sub-decisions were my recommendations, each presented with
+alternatives and accepted. The restructure to JSON sources was my proposal after diagnosing the
+corrupted hand-over — and the underlying mistake was mine too: putting 400 lines of prose in a file
+that had to be transcribed by hand.
+
+## D32 — Truncated structured output: a typed `LLMTruncationError`, split-and-retry in the extractor, and a 4000-token per-chunk budget (2026-07-27)
+
+**Decision.** The Phase 3 acceptance smoke test crashed on document 5 of 10 with a raw pydantic
+`ValidationError`. The fix has three parts, in three layers:
+
+- **`llm.py` owns the failure mode.** `structured()` now also catches `pydantic.ValidationError`
+  and re-raises either `LLMTruncationError` (a new `LLMError` subclass) or a plain `LLMError`,
+  discriminated by a `_is_truncated()` helper.
+- **`claim_extractor.py` recovers instead of dying.** `_extract_with_retry()` wraps
+  `_extract_batch()`: on truncation it halves the batch and retries each half; at a single chunk it
+  doubles the cap once; if that still overflows it logs a warning, counts the chunk in a new
+  `truncated_chunk_count`, and **leaves it uncached**.
+- **`config.py` raises the budget.** `extraction_max_output_tokens_per_chunk` 1500 → 4000.
+
+**The bug.** `LLMClient.structured()` calls `messages.parse()`, which validates the response text
+*inside* the SDK. A response stopped by the `max_tokens` cap therefore arrives as a pydantic
+`ValidationError` — not an `anthropic.AnthropicError` — so the existing `except` didn't catch it and
+it propagated through `_extract_batch` → `_ingest` → `audit()` → CLI, killing a run that had already
+paid for 138 claims. The guard I wrote in D12 for exactly this class of failure —
+`if parsed is None: raise LLMError(...)` — never fires, because the SDK throws before `response` is
+ever assigned.
+
+The contributing cause was a miscalibrated budget. `max_tokens = len(batch) * 1500` gave
+`05_expense_policy.txt` (a single-section TXT → 2 chunks) a 3000-token cap, but a dense 400-token
+policy chunk yields 15–25 claims and each claim serialises to ~120–180 output tokens across `text`,
+`evidence_quote`, `subject`, `predicate`, `conditions`, `polarity` and `quantitative`. The spec's
+"~1500 output tokens per chunk" (§7.1) is simply wrong for claim-dense text. The near-miss is visible
+in the same log: `03_remote_work_policy.txt`, also 2 chunks, produced 26 claims and just fit.
+
+**Options considered.**
+- *Detection*: catch `ValidationError` and sniff the error shape (chosen) vs. replace `messages.parse`
+  with `messages.create` plus hand-rolled validation so `stop_reason` is directly readable.
+- *Recovery*: split-and-retry then give up (chosen) vs. raise the cap only vs. skip the batch and
+  continue vs. fail the audit cleanly.
+- *Budget*: 4000 (chosen) vs. leave at 1500 and rely on the retry vs. compute a cap from chunk length.
+- *Failed chunks*: leave uncached (chosen) vs. cache the empty result.
+
+**Rationale / trade-offs.** All three parts earn their place, and none is sufficient alone.
+Detection-only converts a crash into a clean error but still loses the audit. Budget-only is a guess
+that a denser document defeats. Recovery is what makes the pipeline robust, and the spec's whole
+cost-ceiling/resume design implies an audit must not die from one bad batch.
+
+Discriminating truncation by error shape is the part I like least, because it depends on a pydantic
+message string. I checked it empirically rather than assuming: truncation is `json_invalid` with
+"EOF while parsing"; complete-but-invalid JSON reports "expected value"; a type or field error is not
+`json_invalid` at all. Both branches are unit-tested, so a pydantic change that breaks the
+discrimination fails the suite rather than silently reclassifying every truncation as a schema error.
+
+**Leaving a failed chunk uncached is the subtle one, and it matters most.** Caching an empty result
+would be the natural thing to write and would be a silent, permanent data-loss bug: every resumed run
+would serve zero claims for that chunk straight from cache and never retry, and because the resume
+path is the *normal* path, the loss would compound invisibly across runs. Skipping the cache write
+costs one re-extraction and keeps the failure recoverable.
+
+**A known gap I chose to accept rather than hide.** A truncated call's tokens are *not* recorded
+against the cost tracker, because the SDK raises before `structured()` holds a response object whose
+usage it could read. The spend is real but invisible to the ceiling, bounded by `max_tokens` per
+truncated call. Closing it properly means the `messages.create` migration, which would revisit D12's
+structured-output choice — a bigger change than this bug warranted, and now rarely exercised given
+the 4000-token default (the acceptance run recorded **0 truncated chunks**, so the retry ladder never
+fired). It is documented in the `structured()` docstring rather than left for someone to discover.
+
+Raising the budget is close to free: `max_tokens` is a cap, not a spend — you are billed for tokens
+actually generated — so a generous cap costs nothing and the audit ceiling still bounds a runaway.
+
+**How I verified it.** Four gates green (ruff, ruff-format, mypy --strict, pytest at 138). Two unit
+tests cover the LLM layer (truncation → `LLMTruncationError`; schema violation → plain `LLMError`)
+and two cover the extractor (a truncated 2-chunk batch splits and both halves succeed; a chunk that
+truncates twice is skipped, counted, and **not** cached). Then the real acceptance run: all 10
+documents ingested, 65 chunks, **342 claims, 0 truncated chunks, 0 rejected quotes, 0 hallucinations**
+— and `05_expense_policy.txt`, the document that crashed, extracted 36 claims in one call.
+
+**What the acceptance run also surfaced (open, for later phases).** The run stopped `partial` at the
+$0.40 ceiling after judging 4 of 906 surviving pairs. Two verdicts were real planted conflicts; two
+were the *same* false positive in both directions — both security documents state "updates within 14
+days, and within 48 hours where critical", and the judge paired the general rule from one document
+with the critical-case rule from the other and called it a numerical mismatch. It is a refinement,
+not a conflict, and that text is a planted *agreement*. Two follow-ups, neither fixed here:
+
+1. **Judge prompt**: general rule vs. scoped exception is being misread as contradiction (Phase 6).
+2. **Aggregation**: one semantic finding surfaced twice; grouping belongs in Phase 4 (§7.5).
+
+The funnel is also loose — rerank keeps 3420/5572 and NLI keeps 906/3420 — so a complete audit of
+this corpus costs roughly $9 at ~$0.010/judged pair. That is above the $5.00 default ceiling and is
+a tuning target for Phase 6, not a defect. The full non-partial run is deferred to a later session.
+
+**Provenance.** Mine, prompted by a real crash rather than by review. The three-part shape and the
+uncached-failure rule were my recommendations and were accepted; the acceptance-run findings above
+are observations, recorded here so the Phase 4 and Phase 6 work starts from evidence.

@@ -1,14 +1,16 @@
 """Unit tests for the claim extractor (LLM mocked; no network)."""
 
+from collections.abc import Sequence
 from types import SimpleNamespace
 from typing import Literal, cast
 from unittest.mock import MagicMock
 
 from anthropic import Anthropic
 from anthropic.types import Usage
+from pydantic import ValidationError
 
 from crosscheck.config import Settings
-from crosscheck.ids import claim_id
+from crosscheck.ids import claim_id, content_hash
 from crosscheck.ingestion.claim_extractor import (
     ClaimExtractor,
     ExtractedClaim,
@@ -34,7 +36,9 @@ def _response(batch: _ExtractionBatch) -> SimpleNamespace:
 
 
 def _extractor(
-    responses: list[SimpleNamespace],
+    # MagicMock.side_effect takes return values *or* exceptions to raise, which is how the
+    # truncation tests below make one call fail and the retries succeed.
+    responses: Sequence[SimpleNamespace | BaseException],
     *,
     cache: InMemoryClaimCache | None = None,
     batch_size: int | None = None,
@@ -202,3 +206,47 @@ def test_keeps_quote_with_normalized_whitespace() -> None:
     start, end = claim.evidence_offset
     assert claim.evidence_quote == chunk.text[start:end]  # stored as the real source span
     assert "\n" in claim.evidence_quote  # keeps the source newline, not the model's space
+
+
+def _truncation() -> ValidationError:
+    try:
+        _ExtractionBatch.model_validate_json('{"claims":[{"chunk_id":"c1","text":"cut')
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("expected a validation error")
+
+
+def test_truncated_batch_is_split_and_retried() -> None:
+    a = _chunk("Employees receive 20 PTO days.", "c1")
+    b = _chunk("Vendors must carry insurance.", "c2")
+    batch_a = _ExtractionBatch(
+        claims=[
+            _raw(a, text="Employees receive 20 PTO days.", quote="Employees receive 20 PTO days")
+        ]
+    )
+    batch_b = _ExtractionBatch(
+        claims=[_raw(b, text="Vendors must carry insurance.", quote="Vendors must carry insurance")]
+    )
+    # First call (both chunks) truncates; the two half-batch retries succeed.
+    extractor, mock = _extractor(
+        [_truncation(), _response(batch_a), _response(batch_b)], batch_size=2
+    )
+    result = extractor.extract([a, b])
+    assert mock.messages.parse.call_count == 3
+    assert result.llm_call_count == 3
+    assert result.truncated_chunk_count == 0
+    assert {claim.doc_id for claim in result.claims} == {"doc1"}
+    assert len(result.claims) == 2
+
+
+def test_chunk_truncated_past_retries_is_skipped_and_not_cached() -> None:
+    chunk = _chunk("A very claim-dense chunk.", "c1")
+    cache = InMemoryClaimCache()
+    # Single chunk: truncates at 1x, then again at the doubled cap, so it is given up on.
+    extractor, mock = _extractor([_truncation(), _truncation()], cache=cache, batch_size=1)
+    result = extractor.extract([chunk])
+    assert mock.messages.parse.call_count == 2
+    assert result.truncated_chunk_count == 1
+    assert result.claims == []
+    # Crucially: nothing cached, so a later run retries rather than serving an empty result.
+    assert cache.get(content_hash(chunk.text)) is None

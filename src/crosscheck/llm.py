@@ -18,7 +18,7 @@ import anthropic
 from anthropic import Anthropic
 from anthropic.types import Usage
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from crosscheck.config import Settings
 
@@ -52,6 +52,31 @@ class LLMError(RuntimeError):
 
 class CostCeilingError(LLMError):
     """Raised when running audit spend has reached the configured ceiling."""
+
+
+class LLMTruncationError(LLMError):
+    """Raised when structured output was cut off by the ``max_tokens`` cap.
+
+    Distinct from a schema violation: the output is correct as far as it goes and simply
+    stops mid-value, so a caller can recover by retrying with fewer items per call or a
+    larger cap. A genuine schema violation would survive both, so the two get different
+    types rather than a shared :class:`LLMError`.
+    """
+
+
+def _is_truncated(exc: ValidationError) -> bool:
+    """True if a validation failure is output cut off mid-JSON rather than a bad schema.
+
+    The Anthropic SDK validates the response text *inside* ``messages.parse``, so a
+    response stopped by the ``max_tokens`` cap never reaches us as a response object whose
+    ``stop_reason`` we could read — it arrives as a JSON syntax error. Truncation is
+    specifically ``json_invalid`` with an "EOF while parsing" message; complete-but-invalid
+    JSON reports "expected value", and a type or field error is not ``json_invalid`` at all.
+    """
+    return any(
+        error.get("type") == "json_invalid" and "EOF while parsing" in str(error.get("msg", ""))
+        for error in exc.errors()
+    )
 
 
 @dataclass
@@ -183,7 +208,16 @@ class LLMClient:
 
         Raises:
             CostCeilingError: If the running spend has reached the ceiling.
-            LLMError: If the model is unpriced, the call fails, or no output is returned.
+            LLMTruncationError: If the response was cut off by the ``max_tokens`` cap.
+            LLMError: If the model is unpriced, the call fails, the response fails schema
+                validation, or no output is returned.
+
+        Note:
+            A truncated call's tokens are not recorded against the cost tracker: the SDK
+            raises before this method sees a response object, so its usage is unavailable.
+            The spend is real but invisible, bounded by ``max_tokens`` per truncated call.
+            Recording it exactly would mean replacing ``messages.parse`` with
+            ``messages.create`` plus hand-rolled validation (see D32).
         """
         if model not in MODEL_PRICING:
             raise LLMError(f"No pricing configured for model {model!r}; refusing to call it.")
@@ -203,6 +237,16 @@ class LLMClient:
         except anthropic.AnthropicError as exc:
             request_id = getattr(exc, "request_id", None)
             raise LLMError(f"LLM call failed (request_id={request_id}): {exc}") from exc
+        except ValidationError as exc:
+            cap = max_tokens or self._settings.llm_max_tokens
+            if _is_truncated(exc):
+                raise LLMTruncationError(
+                    f"Model {model} output was cut off at the {cap}-token cap; "
+                    "retry with fewer items per call or a larger cap."
+                ) from exc
+            raise LLMError(
+                f"Model {model} returned output failing schema validation: {exc}"
+            ) from exc
 
         call_cost = self.cost.record(model, response.usage)
         logger.debug(
