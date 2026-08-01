@@ -2110,3 +2110,86 @@ full 200-pair benchmark.
 
 **Provenance.** Mine. I recommended GPT-4.1 over the spec's GPT-4o with the pricing table above and
 the reasoning-model argument against GPT-5; accepted before implementation.
+
+## D38 — Injection targets are chosen by topical relatedness, not at random (2026-08-01)
+
+**Decision.** `synthetic_gen.py` pairs a source section with a target section using **dense
+embedding similarity** — the same `BgeDenseEmbedder` the pipeline retrieves with — instead of
+drawing both uniformly. `related_sections()` computes neighbours in *other* documents above a
+cosine floor of 0.55; `plan_injections()` is pure and takes those neighbours as an argument, so
+planning stays hermetically testable without loading a model. Section ids are resolved by
+re-parsing the written corpus rather than computed up front.
+
+**What the first dry run showed.** I built the random version first and ran it against the
+acceptance corpus before writing any of this down. Ten injections, nine generated, $0.03 — and the
+output was unusable:
+
+- "Employees are not permitted to delete any customer production data" was injected into **§ 5.
+  Remote Work** of the employee handbook.
+- Gold label, typed `numerical_mismatch`: *"Employees must return all company property on their
+  last day of employment"* against *"**Contractors** are required to return all company property
+  within 14 days"*. Two populations, two rules — not a contradiction.
+- Another: *"The Company may withdraw consent to a **subcontractor** on 30 days notice"* against
+  *"Managers may decline a **paid time off** request… 7 days notice"*. Unrelated subjects, labelled
+  a numerical mismatch because both mention days.
+
+**The mechanism, which is the part worth remembering.** Asked to contradict two unrelated sections,
+an instruction-following model does not refuse — it complies. It manufactures a fake conflict or
+drops an obviously foreign sentence into the target. The failure was mine, not the model's: I asked
+for something that does not exist.
+
+**Why bad gold is worse than no gold.** A wrong label corrupts the metrics in *both* directions. The
+system correctly declining to flag "contractors return property in 14 days" versus "employees
+return property on their last day" is scored as a **miss** — recall is depressed for being right.
+That is not a noisy benchmark, it is an actively misleading one, and it would have been invisible
+in a headline F1.
+
+**Options considered.**
+- *Embedding-based topical pairing* (chosen).
+- *Keep random pairing and rely on the model to refuse* — the empty-`source_claim` path already
+  existed and the dry run proved the model does not use it often enough.
+- *Have the LLM pick a target from a shortlist* — an extra call per injection, and it optimises for
+  what the model finds easy to contradict rather than what a real corpus looks like.
+- *Hand-author the pairings* — accurate and unscalable; the point is 200 pairs from a seed.
+
+**Rationale / trade-offs.** Reusing the pipeline's own embedder means "related" is defined the same
+way at generation time as at retrieval time, which keeps the benchmark honest about what the system
+can see. It is local, free, deterministic, and adds no dependency. Neighbours below the floor are
+**dropped rather than padded** — a source with no topical partner produces no injection, because a
+forced pairing is exactly the failure being fixed.
+
+The floor at 0.55 is a judgement call and the one number here I would expect to tune. Too high and
+a small corpus yields nothing; too low and the original problem returns. On the acceptance corpus,
+38 of 38 candidate sections found a partner.
+
+**A second dry run found a subtler flaw.** With topical pairing the contradictions became genuine —
+13-month versus 6-month log retention, subcontracting consent versus no-approval — but every
+`temporal_conflict` injection opened with a bracketed marker: `[Supersedes 09_it_standards_v3.md]`.
+My prompt had licensed "a supersession marker" for that type, and the model took it literally. Real
+policy documents contain no such annotation, so it is a **lexical tell** a detector could learn
+instead of learning to detect contradictions — and it named the source file, which no target
+document would. One whole type would have been artificially easy.
+
+The prompt now forbids filenames, brackets and editorial annotations outright, and requires
+supersession to be written into the prose the way a real document does ("Effective July 2023,
+application and access logs are retained for 6 months in accordance with the revised retention
+schedule"). The third run produced exactly that, with no markers.
+
+**Why section ids are resolved afterwards.** A `section_id` derives from `doc_id`, a content hash of
+the whole document — so injecting text changes *every* section id in that document. Labelling
+before writing would produce gold that cites ids the pipeline can never compute. The generator
+therefore writes the corpus, re-parses it, and locates each claim in the result. A test asserts
+every gold `section_id` appears in a fresh parse, which is the check that would have caught this
+had I got it wrong.
+
+**How I verified it.** Four gates green (ruff, ruff-format, mypy --strict over 61 files, **246
+tests**). Twenty-five tests, with a topic-keyed fake embedder so relatedness is asserted rather
+than hoped for: neighbours never share a document, always share a topic, unrelated sections are
+dropped, plans only pair related sections, no section pair is reused, gold ids match a fresh parse,
+injected text is really in the written corpus, and every rejection path counts rather than crashes.
+Then three real runs against the acceptance corpus at ~$0.03 each.
+
+**Provenance.** Mine. The random version was my first design and the dry run refuted it; the
+relatedness fix was my recommendation and was accepted. Recording the sequence because the lesson
+generalises: **generate a real artifact and read it before trusting a generator**, since every test
+passed on the version producing nonsense.
