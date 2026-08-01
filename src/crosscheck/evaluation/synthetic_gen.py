@@ -34,6 +34,17 @@ So targets are now chosen from a section's nearest neighbours in embedding space
 dense embedder the pipeline retrieves with. The generator is only ever asked to contradict
 something the target section actually discusses. See D38.
 
+**Generation is cached, and the cache key includes the prompt.** A 141-injection run is ten
+minutes of sequential API calls, and losing it to a timeout costs real money. The cache mirrors the
+extraction and judge caches (D30): one JSON file per injection, keyed on a hash of the generator
+model plus the *fully rendered system and user prompts*. Including the prompts is the point —
+regenerating after tuning the injection prompt must actually re-ask the model, or prompt changes
+would silently replay stale output and appear to do nothing.
+
+What is cached is the model's **raw** answer, before validation. Validation is code, so a fix to
+the verbatim check takes effect on replay without re-spending tokens. A failed *call* is never
+cached, because that failure is transient (D32's rule).
+
 **Section ids are resolved after writing, not before.** A ``section_id`` derives from a ``doc_id``,
 which is a content hash of the whole document — so injecting text *changes every section id in
 that document*. Gold labels are therefore filled in by re-parsing the written corpus and locating
@@ -45,6 +56,7 @@ import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -59,6 +71,7 @@ from crosscheck.evaluation.gold import (
     duplicate_section_keys,
     gold_id,
 )
+from crosscheck.ids import content_hash
 from crosscheck.ingestion.parsers import UnsupportedFormatError, parse
 from crosscheck.llm import LLMError, StructuredLLM
 from crosscheck.models import Document, Section
@@ -119,6 +132,75 @@ class GeneratedInjection(BaseModel):
     rationale: str = Field(description="One sentence on why the two cannot both hold.")
 
 
+class InjectionCache(Protocol):
+    """A cache of raw generator output, keyed by model + rendered prompts."""
+
+    def get(self, key: str) -> GeneratedInjection | None:
+        """Return the cached injection for this key, or None on a miss."""
+        ...
+
+    def put(self, key: str, injection: GeneratedInjection) -> None:
+        """Store the raw injection for this key."""
+        ...
+
+
+class InMemoryInjectionCache:
+    """A process-local injection cache (the default; used by tests)."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, GeneratedInjection] = {}
+
+    def get(self, key: str) -> GeneratedInjection | None:
+        """Return the cached injection for this key, or None on a miss."""
+        return self._store.get(key)
+
+    def put(self, key: str, injection: GeneratedInjection) -> None:
+        """Store the raw injection for this key."""
+        self._store[key] = injection
+
+
+class DiskInjectionCache:
+    """A persistent injection cache: one JSON file per prompt hash.
+
+    Survives across processes, so a generation run interrupted at injection 140 of 141 resumes
+    for free instead of re-spending on all 141.
+    """
+
+    def __init__(self, cache_dir: Path) -> None:
+        """Create (if needed) and use ``cache_dir`` to store per-injection output."""
+        self._dir = cache_dir
+        self._dir.mkdir(parents=True, exist_ok=True)
+
+    def get(self, key: str) -> GeneratedInjection | None:
+        """Return the cached injection for this key, or None on a miss."""
+        path = self._dir / f"{key}.json"
+        if not path.exists():
+            return None
+        return GeneratedInjection.model_validate_json(path.read_text(encoding="utf-8"))
+
+    def put(self, key: str, injection: GeneratedInjection) -> None:
+        """Store the raw injection for this key."""
+        (self._dir / f"{key}.json").write_text(injection.model_dump_json(), encoding="utf-8")
+
+
+def injection_cache_key(model: str, system: str, user: str) -> str:
+    """Return the cache key for one injection call.
+
+    Hashes the *rendered* prompts, not just the section text, so editing the injection prompt
+    invalidates every entry. Without that, tuning the prompt would replay stale output and look
+    like it had no effect.
+
+    Args:
+        model: The generator model id.
+        system: The rendered system prompt.
+        user: The rendered user prompt.
+
+    Returns:
+        A stable hex key.
+    """
+    return content_hash("\x1f".join(("injection", model, system, user)))
+
+
 @dataclass(frozen=True)
 class InjectionPlan:
     """One planned injection, decided before any LLM call so planning stays deterministic."""
@@ -140,6 +222,8 @@ class GenerationResult:
     planned: int = 0
     skipped: list[str] = field(default_factory=list)
     cost_usd: float = 0.0
+    cache_hits: int = 0
+    llm_calls: int = 0
 
     @property
     def generated(self) -> int:
@@ -287,6 +371,7 @@ def generate_benchmark(
     per_type: int,
     name: str = "synthetic",
     version: str = "v1",
+    cache: InjectionCache | None = None,
 ) -> GenerationResult:
     """Generate a labelled contradiction benchmark from a seed corpus.
 
@@ -300,6 +385,8 @@ def generate_benchmark(
         per_type: Injections to attempt per contradiction type.
         name: Benchmark name recorded in the gold set.
         version: Benchmark version recorded in the gold set.
+        cache: Injection cache; in-memory if omitted. Pass a :class:`DiskInjectionCache` to
+            make an interrupted run resumable.
 
     Returns:
         The result, including the gold set and anything that had to be skipped.
@@ -327,6 +414,9 @@ def generate_benchmark(
     accepted: list[tuple[InjectionPlan, GeneratedInjection]] = []
     skipped: list[str] = []
     spent_before = llm.cost.total_usd
+    store = cache if cache is not None else InMemoryInjectionCache()
+    cache_hits = 0
+    llm_calls = 0
 
     for plan in plans:
         source_doc, target_doc = documents[plan.source_index], documents[plan.target_index]
@@ -343,17 +433,29 @@ def generate_benchmark(
             target_heading=target_section.heading or "(untitled)",
             target_excerpt=_excerpt(target_section.text),
         )
-        try:
-            injection = llm.structured(
-                model=settings.generator_model,
-                system=system_prompt.text,
-                user=rendered,
-                schema=GeneratedInjection,
-                max_tokens=_INJECTION_MAX_TOKENS,
-            )
-        except LLMError as exc:
-            skipped.append(f"{plan.contradiction_type.value}: generation failed — {exc}")
-            continue
+        key = injection_cache_key(settings.generator_model, system_prompt.text, rendered)
+        cached = store.get(key)
+        if cached is not None:
+            injection = cached
+            cache_hits += 1
+        else:
+            try:
+                injection = llm.structured(
+                    model=settings.generator_model,
+                    system=system_prompt.text,
+                    user=rendered,
+                    schema=GeneratedInjection,
+                    max_tokens=_INJECTION_MAX_TOKENS,
+                )
+            except LLMError as exc:
+                # Never cache a failed call: the failure is transient, and caching it would
+                # make the loss permanent on every resumed run (D32).
+                skipped.append(f"{plan.contradiction_type.value}: generation failed — {exc}")
+                continue
+            llm_calls += 1
+            # Cache the raw answer, before validation — validation is code, so fixing the
+            # verbatim check takes effect on replay without re-spending.
+            store.put(key, injection)
 
         reason = _reject_reason(injection, excerpt)
         if reason is not None:
@@ -390,13 +492,18 @@ def generate_benchmark(
         planned=len(plans),
         skipped=skipped,
         cost_usd=llm.cost.total_usd - spent_before,
+        cache_hits=cache_hits,
+        llm_calls=llm_calls,
     )
     logger.info(
-        "generated {}/{} injection(s) into {} document(s) for ${:.4f}; {} skipped",
+        "generated {}/{} injection(s) into {} document(s) for ${:.4f} "
+        "({} llm call(s), {} cache hit(s)); {} skipped",
         result.generated,
         result.planned,
         len(documents),
         result.cost_usd,
+        llm_calls,
+        cache_hits,
         len(skipped),
     )
     collisions = duplicate_section_keys(gold.pairs)

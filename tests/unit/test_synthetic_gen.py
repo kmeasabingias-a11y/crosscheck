@@ -10,9 +10,13 @@ from crosscheck.config import Settings
 from crosscheck.detection.taxonomy import V1_TYPES, ContradictionType
 from crosscheck.evaluation.gold import duplicate_section_keys, load_gold_set
 from crosscheck.evaluation.synthetic_gen import (
+    DiskInjectionCache,
     GeneratedInjection,
     GenerationResult,
+    InjectionCache,
+    InMemoryInjectionCache,
     generate_benchmark,
+    injection_cache_key,
     plan_injections,
     related_sections,
     section_candidates,
@@ -153,7 +157,7 @@ def _document(title: str, *sections: tuple[str, str]) -> str:
 def _corpus(tmp_path: Path) -> Path:
     """Three documents covering overlapping topics, so every topic has a partner elsewhere."""
     corpus = tmp_path / "seed"
-    corpus.mkdir()
+    corpus.mkdir(exist_ok=True)  # a re-run test builds it twice
     (corpus / "01_handbook.md").write_text(
         _document(
             "Employee Handbook",
@@ -195,16 +199,23 @@ def _settings() -> Settings:
 
 
 def _generate(
-    tmp_path: Path, llm: _FakeLLM, *, per_type: int = 1, seed: int = 7
+    tmp_path: Path,
+    llm: _FakeLLM,
+    *,
+    per_type: int = 1,
+    seed: int = 7,
+    cache: InjectionCache | None = None,
+    out: str = "out",
 ) -> GenerationResult:
     return generate_benchmark(
         _corpus(tmp_path),
-        tmp_path / "out",
+        tmp_path / out,
         llm,
         _settings(),
         cast(DenseEmbedder, _FakeEmbedder()),
         seed=seed,
         per_type=per_type,
+        cache=cache,
     )
 
 
@@ -404,3 +415,76 @@ def test_each_type_has_a_definition(contradiction_type: ContradictionType) -> No
     from crosscheck.evaluation.synthetic_gen import _TYPE_DEFINITIONS
 
     assert _TYPE_DEFINITIONS[contradiction_type].strip()
+
+
+# --- injection cache ----------------------------------------------------------------------
+
+
+def test_cache_key_changes_with_the_prompt() -> None:
+    """The key hashes rendered prompts, so tuning the prompt re-asks the model.
+
+    Without this, editing the injection prompt would replay stale output and look like it had
+    no effect — the failure mode the cache is most likely to cause.
+    """
+    base = injection_cache_key("gpt-4.1", "system", "user")
+    assert base != injection_cache_key("gpt-4.1", "system CHANGED", "user")
+    assert base != injection_cache_key("gpt-4.1", "system", "user CHANGED")
+    assert base != injection_cache_key("gpt-4o", "system", "user")
+    assert base == injection_cache_key("gpt-4.1", "system", "user")
+
+
+def test_a_second_run_serves_every_injection_from_cache(tmp_path: Path) -> None:
+    cache = InMemoryInjectionCache()
+    first = _generate(tmp_path, _FakeLLM(), cache=cache, out="out1")
+    assert first.llm_calls > 0 and first.cache_hits == 0
+
+    second_llm = _FakeLLM()
+    second = _generate(tmp_path, second_llm, cache=cache, out="out2")
+    assert second.cache_hits == first.llm_calls
+    assert second.llm_calls == 0
+    assert second_llm.calls == 0
+    assert second.cost_usd == 0.0
+
+
+def test_disk_cache_survives_a_new_process(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    first = _generate(tmp_path, _FakeLLM(), cache=DiskInjectionCache(cache_dir), out="out1")
+    assert first.llm_calls > 0
+    assert len(list(cache_dir.glob("*.json"))) == first.llm_calls
+
+    # A fresh cache object over the same directory is what a re-run really does.
+    second = _generate(tmp_path, _FakeLLM(), cache=DiskInjectionCache(cache_dir), out="out2")
+    assert second.llm_calls == 0
+    assert second.cache_hits == first.llm_calls
+
+
+def test_a_failed_call_is_not_cached(tmp_path: Path) -> None:
+    """Caching a transient failure would make the loss permanent on every resumed run (D32)."""
+    cache_dir = tmp_path / "cache"
+    failed = _generate(
+        tmp_path, _FakeLLM(error=LLMError("upstream down")), cache=DiskInjectionCache(cache_dir)
+    )
+    assert failed.generated == 0
+    assert list(cache_dir.glob("*.json")) == []
+
+    recovered = _generate(tmp_path, _FakeLLM(), cache=DiskInjectionCache(cache_dir), out="out2")
+    assert recovered.generated > 0
+
+
+def test_rejected_output_is_cached_so_a_validation_fix_replays_free(tmp_path: Path) -> None:
+    """The cache stores the model's raw answer, before validation."""
+    cache_dir = tmp_path / "cache"
+    rejected = _generate(
+        tmp_path,
+        _FakeLLM(source_claim="Not a sentence from the excerpt."),
+        cache=DiskInjectionCache(cache_dir),
+    )
+    assert rejected.generated == 0
+    assert rejected.skipped
+    # The raw answer was still stored, so re-running spends nothing to reach the same verdict.
+    assert len(list(cache_dir.glob("*.json"))) == rejected.llm_calls > 0
+
+    replay_llm = _FakeLLM(source_claim="Not a sentence from the excerpt.")
+    replay = _generate(tmp_path, replay_llm, cache=DiskInjectionCache(cache_dir), out="out2")
+    assert replay_llm.calls == 0
+    assert replay.cache_hits > 0
