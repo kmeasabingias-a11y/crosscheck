@@ -1,5 +1,6 @@
 """CrossCheck command-line interface (Typer)."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -7,6 +8,8 @@ import typer
 from loguru import logger
 
 from crosscheck import __version__, orchestrator
+from crosscheck.aggregation.html_renderer import write_html
+from crosscheck.aggregation.report import build_report, write_json
 from crosscheck.config import get_settings
 from crosscheck.llm import LLMError
 from crosscheck.logging_config import configure_logging
@@ -53,6 +56,14 @@ def audit(
         float | None,
         typer.Option("--max-cost", help="Override the audit cost ceiling, in USD."),
     ] = None,
+    report: Annotated[
+        Path | None,
+        typer.Option("--report", help="Write the grouped contradiction report as JSON here."),
+    ] = None,
+    html: Annotated[
+        Path | None,
+        typer.Option("--html", help="Write the human-readable HTML report here."),
+    ] = None,
     reset_store: Annotated[
         bool,
         typer.Option(
@@ -84,6 +95,17 @@ def audit(
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(result.model_dump_json(indent=2), encoding="utf-8")
         logger.info("wrote audit result to {}", output)
+
+    if report is not None or html is not None:
+        # A real timestamp is right for a CLI run; build_report defaults it to None so the
+        # regression snapshot over a frozen fixture stays byte-stable (D35).
+        built = build_report(result, generated_at=datetime.now(UTC))
+        if report is not None:
+            write_json(built, report)
+            logger.info("wrote contradiction report to {}", report)
+        if html is not None:
+            write_html(built, html)
+            logger.info("wrote HTML report to {}", html)
 
     _summarize(result)
 

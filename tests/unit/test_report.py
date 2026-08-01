@@ -217,6 +217,45 @@ def test_findings_are_grouped_by_document_pair_and_sorted_by_filename() -> None:
     assert all(group.finding_count == 1 for group in report.groups)
 
 
+def test_sides_are_ordered_by_filename_not_by_claim_hash() -> None:
+    """Pair order comes from content hashes; the report must not expose that ordering."""
+    docs = [_doc("d1", "01_handbook.md", ("s1", "A")), _doc("d2", "02_pto.md", ("s2", "B"))]
+    claims = [_claim("c1", "d1", "s1", _QUOTE_A), _claim("c2", "d2", "s2", _QUOTE_B)]
+    # Pair built "backwards": claim A is the second document.
+    pairs = [Pair(pair_id="p1", claim_a_id="c2", claim_b_id="c1")]
+    report = build_report(
+        _result(claims=claims, pairs=pairs, verdicts=[_verdict("p1")], documents=docs)
+    )
+
+    finding = report.findings[0]
+    assert (finding.a.filename, finding.b.filename) == ("01_handbook.md", "02_pto.md")
+    group = report.groups[0]
+    assert (group.doc_a, group.doc_b) == ("01_handbook.md", "02_pto.md")
+
+
+def test_reversed_pairs_land_in_the_same_group() -> None:
+    """A→B and B→A must not produce two groups for one document pair."""
+    docs = [
+        _doc("d1", "01_handbook.md", ("s1", "A"), ("s3", "C")),
+        _doc("d2", "02_pto.md", ("s2", "B"), ("s4", "D")),
+    ]
+    claims = [
+        _claim("c1", "d1", "s1", _QUOTE_A),
+        _claim("c2", "d2", "s2", _QUOTE_B),
+        _claim("c3", "d1", "s3", _QUOTE_A),
+        _claim("c4", "d2", "s4", _QUOTE_B),
+    ]
+    pairs = [
+        Pair(pair_id="p1", claim_a_id="c1", claim_b_id="c2"),
+        Pair(pair_id="p2", claim_a_id="c4", claim_b_id="c3"),  # reversed
+    ]
+    verdicts = [_verdict("p1"), _verdict("p2", confidence=0.7)]
+    report = build_report(_result(claims=claims, pairs=pairs, verdicts=verdicts, documents=docs))
+
+    assert len(report.groups) == 1
+    assert report.groups[0].finding_count == 2
+
+
 def test_findings_within_a_group_are_ordered_by_confidence() -> None:
     docs = [_doc("d1", "a.md", ("s1", "A"), ("s3", "C")), _doc("d2", "b.md", ("s2", "B"))]
     claims = [

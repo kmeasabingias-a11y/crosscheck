@@ -1905,3 +1905,58 @@ verdict, because the evaluation harness needs them individually.
 **Provenance.** Mine, recommended after the subject-cardinality check above and accepted. The check
 is the part worth keeping: the spec's grouping sounded right and the data said otherwise, and it
 cost one query against a cache that already existed.
+
+## D35 — The HTML report is rendered without a templating engine (2026-08-01)
+
+**Decision.** `aggregation/html_renderer.py` builds the report's HTML with plain Python string
+composition. The CSS lives in a module-level constant, every interpolation goes through a single
+`_esc()` helper wrapping `html.escape`, and there is no Jinja2 (or any other engine) in the
+dependency list.
+
+**Options considered.**
+- *Hand-rolled with `html.escape`* (chosen).
+- *Declare `jinja2` and put the page in a template file* — autoescaping for free, better
+  separation of markup from code.
+- *A minimal `str.format`/`Template` scheme over an external `.html` asset* — no engine, markup
+  still out of Python.
+
+**Rationale / trade-offs.** Jinja2 was genuinely tempting, and it is the option I would pick for a
+web application. Two things decided against it here. First, the dependency surface is an explicit
+design value in this project — §4's stated reason for refusing LangChain is that a heavy framework
+obscures the engineering and enlarges the dependency graph, and pulling in a templating engine for
+exactly one page cuts against the same principle. Second, I checked what was actually available:
+`jinja2` is in `uv.lock`, but only as a **platform-conditional transitive dependency of torch**
+(`sys_platform` markers). Depending on it without declaring it would be fragile in a way that
+would not show up until someone's platform resolved differently, and declaring it means adding a
+direct dependency after all.
+
+The third option — a template asset plus simple substitution — I rejected because it is the worst
+of both: it either reinvents a templating engine badly, or it forces build-backend package-data
+configuration for a single file. Keeping the CSS in a module constant avoids both, and since it is
+a plain string rather than an f-string, its many `{` braces need no escaping.
+
+What I gave up is real and worth naming: markup interleaved with Python is harder to read than a
+template, and there is no autoescaping safety net. The mitigation is that escaping happens at
+exactly one choke point, and it is tested adversarially rather than assumed — the suite renders a
+claim whose text is `<script>alert("xss")</script> & <img src=x onerror=1>` and asserts the tags
+come out escaped and the document still parses as balanced HTML. Claim text comes from documents
+CrossCheck did not author, so treating it as untrusted input is not theoretical.
+
+The `_highlight` helper is the one place the escaping order matters: it slices the raw passage on
+the span offsets **first**, then escapes each fragment, then wraps the middle in `<mark>`. Escaping
+before slicing would invalidate the offsets, because `&amp;` is five characters where `&` was one.
+
+**Determinism.** Output is a pure function of the report. `generated_at` defaults to `None` and the
+renderer omits the timestamp entirely when it is unset, so the §12 regression snapshot over a
+frozen fixture is byte-stable and diffable. A page that changes on every run is a snapshot nobody
+reads.
+
+**How I verified it.** Four gates green (ruff, ruff-format, mypy --strict over 56 files, 175
+tests). Fifteen renderer tests: HTML balance via `html.parser` on every state, the self-contained
+assertion (no `http://`, no `<link`, no `src=`), evidence spans marked, escaping of both claim text
+and rationale, the designed empty state carrying real counts, the partial banner appearing only
+when partial, and byte-identical output across two renders. Two sample pages were rendered from
+the real renderer and checked against the approved mockup.
+
+**Provenance.** Mine. I raised the Jinja2 option, recommended hand-rolling, and the recommendation
+was accepted before implementation.

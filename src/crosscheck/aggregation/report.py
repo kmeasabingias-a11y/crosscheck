@@ -247,21 +247,38 @@ def _build_finding(
     claim_b: Claim,
     documents: dict[str, DocumentRef],
 ) -> Finding:
-    """Join one verdict with its pair, claims and document refs."""
+    """Join one verdict with its pair, claims and document refs.
+
+    The two sides are ordered by filename rather than left in the pair's own order. The pair's
+    order comes from ``claim_a_id``/``claim_b_id``, which are content hashes — so without this
+    the left/right columns would flip arbitrarily between cards in the same group, and a group
+    heading could name its documents in the opposite order to the card beneath it.
+    """
+    side_a = _build_side(claim_a, verdict.evidence_a, documents)
+    side_b = _build_side(claim_b, verdict.evidence_b, documents)
+    subject = claim_a.subject
+    if _side_order(side_b) < _side_order(side_a):
+        side_a, side_b = side_b, side_a
+        subject = claim_b.subject
     return Finding(
         pair_id=verdict.pair_id,
         # The judge coerces an untyped contradiction to UNCLEAR (D29); belt and braces here.
         contradiction_type=verdict.contradiction_type or ContradictionType.UNCLEAR,
         confidence=verdict.confidence,
-        subject=claim_a.subject,
+        subject=subject,
         rationale=verdict.rationale,
         resolution_hint=verdict.resolution_hint,
-        a=_build_side(claim_a, verdict.evidence_a, documents),
-        b=_build_side(claim_b, verdict.evidence_b, documents),
+        a=side_a,
+        b=side_b,
         retrieval_score=pair.retrieval_score,
         rerank_score=pair.rerank_score,
         nli_contradiction_prob=pair.nli_contradiction_prob,
     )
+
+
+def _side_order(side: FindingSide) -> tuple[str, str]:
+    """Sort key for a side: filename, then doc id so identically-named files stay stable."""
+    return (side.filename, side.doc_id)
 
 
 def _build_side(claim: Claim, highlight: str, documents: dict[str, DocumentRef]) -> FindingSide:
@@ -291,10 +308,11 @@ def _group_by_document_pair(
     documents: dict[str, DocumentRef],
 ) -> list[DocumentPairGroup]:
     """Bucket findings by the document pair they span, roll up near-duplicates, and sort."""
+    # Sides are already ordered by filename (see _build_finding), so the pair as it stands is
+    # the canonical key — no re-canonicalising on doc_id, which would reintroduce hash order.
     buckets: dict[tuple[str, str], list[Finding]] = defaultdict(list)
     for finding in findings:
-        key = (finding.a.doc_id, finding.b.doc_id)
-        buckets[key if key[0] <= key[1] else (key[1], key[0])].append(finding)
+        buckets[(finding.a.doc_id, finding.b.doc_id)].append(finding)
 
     groups: list[DocumentPairGroup] = []
     for (doc_a_id, doc_b_id), bucket in buckets.items():
