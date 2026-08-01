@@ -2193,3 +2193,126 @@ Then three real runs against the acceptance corpus at ~$0.03 each.
 relatedness fix was my recommendation and was accepted. Recording the sequence because the lesson
 generalises: **generate a real artifact and read it before trusting a generator**, since every test
 passed on the version producing nonsense.
+
+## D39 — Injection results are cached, and the cache key includes the rendered prompts (2026-08-01)
+
+**Decision.** `synthetic_gen.py` gains the same cache trio as the extractor and judge:
+`InjectionCache` protocol, `InMemoryInjectionCache` (default) and `DiskInjectionCache`. The key is
+`content_hash("injection", generator_model, rendered_system_prompt, rendered_user_prompt)`. What is
+stored is the model's **raw** answer, before validation. A failed *call* is never cached.
+
+**Why now.** The first real generation run — 141 injections against the GDPR seed corpus — was
+killed by a ten-minute tool timeout at roughly injection 120, and every one of those calls was lost.
+Extraction and judging have been resumable since D30; generation was the one LLM stage that was not,
+and it is the stage most likely to be re-run, because the whole point of a benchmark generator is
+that you tune it and regenerate.
+
+**The part that matters: the key includes the prompts.** The obvious key is the model plus the two
+section texts. That would have been a trap. Regenerating after editing the injection prompt is
+precisely the workflow — I had already changed that prompt once, to kill the `[Supersedes ...]`
+lexical tell (D38) — and a key that ignored the prompt would have replayed the *old* output and made
+the fix appear to do nothing. A silent no-op is worse than no cache at all, because it looks like
+evidence that the prompt did not matter. Hashing the fully rendered system and user prompts makes
+any edit invalidate every entry, which is the correct and slightly expensive behaviour.
+
+**Caching the raw answer rather than the validated result** separates model behaviour from code.
+The verbatim check that rejects a paraphrased `source_claim` is code; if I tighten it, the fix
+should take effect on replay without re-spending tokens. So a rejected injection *is* cached — the
+model genuinely said that, at temperature 0, and replaying it is correct — while an `LLMError` is
+not, because that failure is transient. That is D32's rule applied to a new stage: never cache a
+failure you would want to retry.
+
+**Options considered.**
+- *Key on model + prompts, cache raw output* (chosen).
+- *Key on model + section texts* — smaller and faster to reason about, and silently wrong the first
+  time the prompt changes.
+- *Include a hand-maintained prompt version number in the key* — works, until someone edits a prompt
+  and forgets to bump it. Hashing the text cannot be forgotten.
+- *No cache* — the status quo that just cost a ten-minute run.
+
+**How I verified it.** Four gates green (ruff, ruff-format, mypy --strict over 61 files, **251
+tests**). Five new tests: the key changes with system prompt, user prompt and model but is stable
+for identical input; a second run serves every injection from cache with zero LLM calls and zero
+cost; a `DiskInjectionCache` re-opened over the same directory behaves as a new process would; a
+failed call leaves the cache empty and a later run recovers; and rejected output is cached so a
+validation fix replays free.
+
+**Provenance.** The user asked for the cache before regenerating. The prompt-in-the-key design and
+the raw-versus-validated distinction were mine.
+
+## D40 — One shared quote matcher, tolerant of punctuation as well as whitespace; longer LLM timeout (2026-08-01)
+
+**Decision.** The verbatim-quote rule moves into a new module, `crosscheck/text.py`, exposing
+`locate_quote()` and `quote_present()`. The extractor, the judge and the report builder all
+delegate to it. The rule now folds **punctuation variants** — typographic quotes and dashes —
+in addition to whitespace. Separately, `llm_timeout_seconds` goes 60 → 300 and
+`extraction_batch_size` 4 → 3.
+
+**Both bugs came from the same thirty seconds of running on real documents.** The GDPR benchmark
+probe was the first time this system had seen text it had not written itself, and it failed twice.
+
+**Bug one: smart quotes silently discarded correct claims.** The extractor returned
+
+> `processed lawfully ... ('lawfulness, fairness and transparency');`
+
+with ASCII apostrophes, while the GDPR source has U+2018/U+2019. The verbatim check rejected it,
+and the claim was dropped. Five of 89 claims on the first document alone — **5.6%** — for a reason
+having nothing to do with correctness. It never surfaced before because the acceptance corpus is
+fictional prose I wrote in ASCII (D31); every real document is typeset.
+
+This is the worst shape of bug: no error, no crash, just quietly fewer claims. Downstream it would
+have depressed recall and been indistinguishable from a detection failure.
+
+The fix folds quote and dash variants exactly as D20 folds whitespace — a model normalising
+typography is not fabricating. Word content must still match exactly, so a changed or invented word
+still fails, and there are tests pinning that: `a, b` does not match `a b`, and `total: 30` does not
+match `total 30`. Folding variants is not the same as ignoring punctuation.
+
+**Why a shared module now, rather than a fourth copy.** The rule already existed three times — in
+`claim_extractor`, in `llm_judge` as a boolean, and in `report` as a span. I noted the duplication
+when writing the report builder (walkthrough 30) and deliberately deferred it. This bug is the
+argument for having done it: the punctuation fix had to land in three places, and a drift between
+them would mean a quote acceptable to the extractor but a hallucination to the judge. Detection
+importing from aggregation would have inverted the dependency direction, which is why the shared
+home is a leaf module rather than one of the existing ones. `report.locate_quote` is re-exported so
+existing imports keep working.
+
+**Spans stay in the original text.** Matching builds a pattern from the quote rather than
+normalising the haystack, so offsets index the source as it really is. That is what lets the
+extractor store the true source span and the renderer mark it without drift — normalising first
+would shift every offset after the first substitution.
+
+**Bug two: the timeout could not cover a dense batch.** `extraction_batch_size=4` ×
+`extraction_max_output_tokens_per_chunk=4000` asks for up to **16,000 output tokens** in one
+request, against a 60-second timeout. That cannot complete; both retries also timed out and the
+audit died. D32 raised the per-chunk budget to 4000 and the timeout never caught up — the
+acceptance corpus hid it because its chunks produced far shorter outputs than the cap.
+
+300 seconds, and a batch of 3 rather than 4 so a single request cannot ask for 16k tokens. Both
+are cheap: `max_tokens` is a cap, not a spend, and a smaller batch only amortises the system prompt
+slightly less.
+
+**Options considered.**
+- *Shared module + punctuation folding + longer timeout* (chosen).
+- *Normalise both sides and match on the normalised strings* — simpler, and it breaks every
+  offset, which the extractor and the renderer both depend on.
+- *Strip punctuation entirely before comparing* — would accept genuine fabrications that differ
+  only in punctuation, e.g. a list where `a, b` and `a b` mean different things.
+- *Streaming for long extraction calls* — the SDK's actual recommendation for large `max_tokens`,
+  and a bigger change to `llm.py` than the problem warrants now. Worth revisiting if 300s proves
+  insufficient.
+
+**How I verified it.** Four gates green (ruff, ruff-format, mypy --strict over 63 files, **264
+tests**). Thirteen tests on the new module: exact spans, rewrapped line breaks, collapsed
+whitespace, typographic quotes matching ASCII in both directions, all seven dash variants, double
+quotes, whitespace and punctuation combined, and three tests pinning what must *still* fail.
+Behaviour was also checked directly against the real GDPR sentence that triggered the bug.
+
+**A note on the literals.** The character classes are written as `‘`-style escapes rather than
+literal characters, because the literals are visually indistinguishable from one another — which is
+precisely the confusion the module exists to absorb. Ruff's RUF001 refuses them anyway, correctly,
+everywhere except here.
+
+**Provenance.** Mine, found by the probe rather than by review. The duplication was flagged in
+walkthrough 30 before it caused harm; this is the second time a real-document run has found what
+the fictional corpus could not (D38 was the first).

@@ -23,7 +23,6 @@ Three defenses matter here, and each mirrors a pattern already used upstream:
     ``partial``, and returns the verdicts it has — it never runs unbounded.
 """
 
-import re
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
@@ -37,6 +36,7 @@ from crosscheck.ids import content_hash
 from crosscheck.llm import CostCeilingError, LLMClient
 from crosscheck.models import Claim, CrossCheckModel, Pair, Verdict
 from crosscheck.prompts import load_prompt
+from crosscheck.text import quote_present
 
 
 class JudgeError(RuntimeError):
@@ -140,23 +140,6 @@ class DiskVerdictCache:
     def put(self, key: str, verdict: JudgedVerdict) -> None:
         """Store the raw verdict for this key."""
         (self._dir / f"{key}.json").write_text(verdict.model_dump_json(), encoding="utf-8")
-
-
-def _quote_present(haystack: str, quote: str) -> bool:
-    """Return True if ``quote`` appears in ``haystack``, tolerating whitespace differences.
-
-    Mirrors the extractor's verbatim check (D20): an exact substring match first, then a
-    whitespace-flexible match (each run of whitespace in the quote matches any run of
-    whitespace in the text), because the model often normalizes a source's line-wrap
-    newlines to spaces while otherwise copying a span verbatim. A genuine fabrication — a
-    changed or invented word — still fails.
-    """
-    if not quote.strip():
-        return False
-    if quote in haystack:
-        return True
-    pattern = re.compile(r"\s+".join(re.escape(word) for word in quote.split()))
-    return pattern.search(haystack) is not None
 
 
 def _claim_material(claim: Claim) -> str:
@@ -312,8 +295,8 @@ class LLMJudge:
                 resolution_hint=raw.resolution_hint,
             )
         if not (
-            _quote_present(_claim_material(claim_a), raw.evidence_a)
-            and _quote_present(_claim_material(claim_b), raw.evidence_b)
+            quote_present(_claim_material(claim_a), raw.evidence_a)
+            and quote_present(_claim_material(claim_b), raw.evidence_b)
         ):
             logger.warning(
                 "judge: evidence not found in claims for pair {} — dropping as hallucination "

@@ -72,12 +72,16 @@ class Settings(BaseSettings):
 
     # --- LLM call tuning (Phase 1) ---
     llm_max_tokens: int = 2048
-    llm_timeout_seconds: float = 60.0
+    # 60s could not cover a dense extraction batch: batch_size x 4000 output tokens is
+    # 12k+ tokens, which takes minutes to generate. A GDPR run died on it (D40).
+    llm_timeout_seconds: float = 300.0
     llm_max_retries: int = 2
 
     # --- Claim extraction (Phase 1) ---
     # Chunks per extraction call, to amortize the system prompt (spec §7.1: batch 3-5).
-    extraction_batch_size: int = Field(default=4, ge=1)
+    # 3 not 4: bounds a single call's max_tokens (batch x per-chunk budget) so one
+    # request cannot ask for 16k output tokens and time out (D40).
+    extraction_batch_size: int = Field(default=3, ge=1)
     # Output-token budget per chunk in a batch; the call's max_tokens is this times the
     # batch size. The spec (§7.1) suggests ~1500, which the acceptance corpus proved too
     # low: a dense 400-token policy chunk yields 15-25 claims, and each claim serializes to

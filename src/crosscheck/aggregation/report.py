@@ -25,7 +25,6 @@ pair id — so the frozen-fixture regression snapshot in §12 is stable.
 """
 
 import json
-import re
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -36,31 +35,7 @@ from pydantic import Field
 from crosscheck.detection.taxonomy import ContradictionType
 from crosscheck.models import Claim, CrossCheckModel, DocumentRef, Pair, Verdict
 from crosscheck.orchestrator import AuditResult, AuditStats, CostSummary
-
-
-def locate_quote(haystack: str, quote: str) -> tuple[int, int] | None:
-    """Return the ``[start, end)`` span of ``quote`` within ``haystack``, or None.
-
-    Mirrors the verbatim rule the extractor and judge already apply (D20): an exact match
-    first, then a whitespace-flexible match, because a model routinely normalizes a source's
-    line-wrap newlines to spaces while copying a span otherwise verbatim. The judge validated
-    that its quotes are present at all; this locates them so the renderer can mark the span.
-
-    Args:
-        haystack: The passage the quote should appear in.
-        quote: The verbatim span to find.
-
-    Returns:
-        The half-open character span, or None when the quote is not present.
-    """
-    if not quote.strip():
-        return None
-    index = haystack.find(quote)
-    if index >= 0:
-        return (index, index + len(quote))
-    pattern = re.compile(r"\s+".join(re.escape(word) for word in quote.split()))
-    match = pattern.search(haystack)
-    return match.span() if match else None
+from crosscheck.text import locate_quote
 
 
 class FindingSide(CrossCheckModel):
@@ -382,3 +357,16 @@ def load_report(path: Path) -> ContradictionReport:
         ValueError: If the file is not a valid report document.
     """
     return ContradictionReport.model_validate(json.loads(path.read_text(encoding="utf-8")))
+
+
+#: Re-exported so callers that found it here keep working; the rule lives in one place (D40).
+__all__ = [
+    "ContradictionReport",
+    "DocumentPairGroup",
+    "Finding",
+    "FindingSide",
+    "build_report",
+    "load_report",
+    "locate_quote",
+    "write_json",
+]

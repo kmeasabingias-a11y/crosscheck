@@ -32,6 +32,7 @@ from crosscheck.ids import claim_id, content_hash
 from crosscheck.llm import LLMClient, LLMTruncationError
 from crosscheck.models import Chunk, Claim, CrossCheckModel, Quantitative
 from crosscheck.prompts import load_prompt
+from crosscheck.text import locate_quote
 
 
 class ExtractedClaim(CrossCheckModel):
@@ -186,27 +187,6 @@ def _batched(items: Sequence[Chunk], size: int) -> Iterator[list[Chunk]]:
         yield list(items[start : start + size])
 
 
-def _locate_quote(text: str, quote: str) -> tuple[int, int] | None:
-    """Find ``quote`` in ``text``, tolerating whitespace differences.
-
-    Tries an exact substring match first. On a miss, falls back to a whitespace-flexible
-    match (each run of whitespace in the quote matches any run of whitespace in the text),
-    because the model occasionally copies a genuinely verbatim span but normalizes the
-    source's line-wrap newlines to spaces — an exact check would wrongly reject it. Only
-    word content must match, so a true hallucination (a changed or invented word) still
-    fails. Returns the [start, end) span of the actual substring in ``text`` — so the
-    stored quote stays verbatim to the source — or None if the words are not present.
-    """
-    if not quote.strip():
-        return None
-    exact = text.find(quote)
-    if exact >= 0:
-        return (exact, exact + len(quote))
-    pattern = re.compile(r"\s+".join(re.escape(word) for word in quote.split()))
-    match = pattern.search(text)
-    return match.span() if match is not None else None
-
-
 def _finalize_claim(raw: ExtractedClaim, chunk: Chunk) -> Claim | None:
     """Build a full :class:`Claim` from a raw extraction, or None if the quote is bad.
 
@@ -214,7 +194,7 @@ def _finalize_claim(raw: ExtractedClaim, chunk: Chunk) -> Claim | None:
     differences); that span gives the offset and the verbatim source quote, from which the
     claim id is derived.
     """
-    span = _locate_quote(chunk.text, raw.evidence_quote)
+    span = locate_quote(chunk.text, raw.evidence_quote)
     if span is None:
         logger.warning(
             "extractor: evidence quote not found in chunk {} — dropping claim: {!r}",
