@@ -1809,3 +1809,99 @@ a tuning target for Phase 6, not a defect. The full non-partial run is deferred 
 **Provenance.** Mine, prompted by a real crash rather than by review. The three-part shape and the
 uncached-failure rule were my recommendations and were accepted; the acceptance-run findings above
 are observations, recorded here so the Phase 4 and Phase 6 work starts from evidence.
+
+## D33 — Report cross-linking: a lightweight `DocumentRef` index on `AuditResult`, not the full `Document` (2026-08-01)
+
+**Decision.** `AuditResult` gains `documents: list[DocumentRef]`, replacing the bare
+`document_ids: list[str]`. A `DocumentRef` carries the `doc_id`, the `source_path`, the title, and a
+list of `SectionRef` (`section_id`, `heading`, `page_span`) — enough to render "01_employee_handbook.md
+§ 2. Paid Time Off" and nothing more. `document_ids` survives as a derived property so existing
+callers keep working.
+
+**The gap.** Spec §7.5 requires the report to "cross-link to source documents", and that turned out
+to be unbuildable from an `AuditResult`. A `Claim` carries `doc_id` and `section_id`; both are
+content hashes. The `Document` and `Section` objects that know the filename and the heading are
+created inside `_ingest` and discarded when the loop moves on, so by the time aggregation runs there
+is no way back from a hash to a human-readable citation. Every finding could name its claims and
+none could name where they came from.
+
+**Options considered.**
+- *A lightweight ref index* (chosen).
+- *Put `documents: list[Document]` on the result* — full fidelity, no new model.
+- *Re-parse the corpus inside `report.py`* — no schema change at all.
+
+**Rationale / trade-offs.** Carrying whole `Document` objects would have been the smaller diff, and
+I rejected it on two grounds. It duplicates every section's full text into the result — and
+therefore into the `-o` JSON — which roughly doubles the payload for data the report never renders;
+the claims already carry the only source text a reader sees, in `evidence_quote`. More importantly
+it is the same source-text exposure that made me gitignore `.crosscheck/` in D30: an audit result is
+something you hand to someone, and it should not silently contain the full text of every document
+that was audited. A ref index is a few hundred bytes per document and leaks nothing that is not
+already in a citation.
+
+Re-parsing inside `report.py` avoids the schema change but is worse on every other axis: it re-reads
+and re-parses the corpus for presentation, it fails if the files moved after the audit, and it can
+drift — the report would describe the documents as they are *now*, not as they were when the audit
+ran. Aggregation should render what the audit produced, not go back to disk for it.
+
+What I gave up: the report cannot show surrounding section context beyond the claim's own
+`evidence_quote`, because the section text is no longer in scope. That is acceptable — the mockup
+shows the evidence span highlighted inside the claim's verbatim quote, which is what §7.5 asks for.
+If wider context turns out to matter for the demo, the honest fix is to widen `evidence_quote` at
+extraction time, not to ship whole documents through the pipeline.
+
+**Provenance.** Mine, and the reason I mocked the HTML before writing the renderer, as spec §8
+Phase 4 instructs. The gap is invisible from the schema — `AuditResult` looks complete until you try
+to render a citation from it — and would have surfaced halfway through `html_renderer.py` otherwise.
+
+## D34 — Findings are grouped by document pair, not by `Claim.subject` (2026-08-01)
+
+**Decision.** The report groups findings by the **pair of documents** they span
+("`01_employee_handbook.md` ↔ `02_pto_policy_v2.md`"), sorted by confidence within each group. Each
+finding still displays its `subject` on the card. This is a deliberate deviation from spec §7.5,
+which says to group by subject.
+
+**Why the spec's grouping fails.** I checked it against the 342 claims cached from the acceptance
+corpus rather than assuming it would work:
+
+```
+claims:                342
+distinct subjects:     173
+singletons:            108   (62% of distinct subjects)
+after casefold+strip:  168   (normalisation merges 5)
+most common:  Vendor 15 · employees 14 · addendum 12 · contractors 11 · policy 10
+```
+
+`Claim.subject` is the *grammatical* subject of the assertion, which is what the §7.1 schema's
+`subject`/`predicate` split asks the extractor for. It is not a topic. Grouping by it files the PTO
+carry-over conflict next to a health-insurance conflict under "Employees", and splits the four
+vendor conflicts across "Vendor", "European Vendors", and "Master Services Agreement". With 62% of
+subjects appearing exactly once, most groups would hold a single finding — which is not a grouping.
+
+**Options considered.**
+- *Group by document pair* (chosen).
+- *Group by normalised `subject`* — spec-literal; casefolding merges 173 → 168, so it stays broken.
+- *Cluster claim embeddings into topics* — the vectors already exist, so this is nearly free.
+
+**Rationale / trade-offs.** Document-pair grouping is total and deterministic: retrieval already
+filters `doc_id != self`, so every finding spans exactly two documents and lands in exactly one
+group, with no threshold and no tie-break. It also matches how the report is actually read — the
+question a reader brings is "where do these two documents disagree", and the answer is a heading
+they can act on. It costs nothing: the grouping key is already in the pair.
+
+I passed on embedding clusters despite the vectors being free. It introduces a cluster-count or
+distance threshold that would need tuning, it makes the report non-deterministic in a way that
+breaks the D-series regression-snapshot test, and it buys a topic label that document-pair grouping
+mostly implies anyway — the handbook-vs-PTO-v2 group *is* the paid-time-off group in this corpus.
+If a real corpus later produces one document pair with thirty unrelated conflicts, clustering
+becomes worth revisiting; on ten documents it is complexity without a payoff.
+
+What I gave up: a conflict that recurs across three or more documents appears once per document
+pair rather than as one topical finding. The acceptance corpus has exactly this case — logs retained
+90 days in the security policy versus 13 months in *both* the IT standards and the retention policy.
+The near-duplicate roll-up in the report handles the presentation; the underlying JSON keeps every
+verdict, because the evaluation harness needs them individually.
+
+**Provenance.** Mine, recommended after the subject-cardinality check above and accepted. The check
+is the part worth keeping: the spec's grouping sounded right and the data said otherwise, and it
+cost one query against a cache that already existed.
