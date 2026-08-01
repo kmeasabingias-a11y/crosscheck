@@ -1960,3 +1960,153 @@ the real renderer and checked against the approved mockup.
 
 **Provenance.** Mine. I raised the Jinja2 option, recommended hand-rolling, and the recommendation
 was accepted before implementation.
+
+## D36 — Gold labels match predictions at section level, not claim level (2026-08-01)
+
+**Decision.** A gold contradiction is identified by the **unordered pair of sections** it spans:
+`{(document, section_id), (document, section_id)}`. A predicted finding counts as a match when its
+two sides land in those two sections, in either order. Character spans are recorded on every gold
+side but are not used for matching. `evaluation/gold.py` owns the schema (`GoldSide`, `GoldPair`,
+`GoldSet`), the loader, and the single-pair `matches()` predicate; aggregate scoring belongs to the
+Phase 6 metrics module.
+
+**The problem.** The system extracts its own claims. A claim id is a content hash of text *the
+extractor chose*, so it cannot be known when a benchmark is authored, and it changes whenever the
+extractor splits a sentence differently or a prompt is retuned. A gold label written at claim level
+would therefore match nothing on the run after the one that produced it. Something coarser than a
+claim and finer than a document is required, and the section is the natural unit — it is what the
+parser already produces, what a citation names, and what a human reviewing an injected
+contradiction actually looks at.
+
+**Options considered.**
+- *Section-pair matching* (chosen).
+- *Span overlap* — gold carries char offsets; a prediction matches if its evidence overlaps.
+- *Claim-text similarity* — fuzzy-match the prediction's claim text against the authored text.
+
+**Rationale / trade-offs.** The deciding argument is attribution. §9.2 already measures claim
+extraction on its own against a separate gold set, and the whole point of doing so is that
+end-to-end F1 cannot tell you whether a miss came from extraction or from detection. If the
+end-to-end matcher were also sensitive to extraction behaviour — as both span overlap and text
+similarity are — then a change in the extractor would move the detection numbers, and the two
+metrics would stop being independent readings. Section matching deliberately makes end-to-end
+scoring blind to how the extractor carved up a section.
+
+Span overlap is the better metric in principle and I have kept the door open rather than closed:
+every `GoldSide` records `evidence_quote` and `char_span`, so a stricter overlap metric can be
+computed in Phase 6 without regenerating a single benchmark. Text similarity I rejected outright —
+it introduces a similarity threshold, which is a tuning knob inside the measuring instrument.
+
+**What it costs, stated plainly.** Section matching cannot distinguish two different contradictions
+that span the same two sections. `duplicate_section_keys()` exists to surface exactly that: a
+generator should call it and relocate or merge the offenders, because a collision would silently
+let one finding score as though it had found both. The loader does not reject collisions, since a
+real corpus may legitimately contain two conflicts in one section pair, but they must be visible.
+
+**Two guards worth more than the schema.** A gold pair whose sides lack section ids — a
+hand-written pair authored without parsing the corpus — degrades to **document-level** matching and
+says so via `granularity`, and the loader warns, because such a pair matches *any* finding between
+those documents and will overstate recall. That was a silent-empty-key bug in my first draft: a
+missing section id produced a `""` key that matched nothing, quietly turning a real label into a
+guaranteed false negative.
+
+`GoldSet.cross_model` compares the generator's model family against the judge's and returns
+**`None` when either is unrecorded** rather than defaulting to a comfortable answer. §9.1's
+cross-model requirement is the single easiest thing to violate by accident, and "we don't know"
+must not read as "it's fine". `load_gold_set` warns loudly when the two families match.
+
+Gold labels are also validated against `V1_TYPES`, so `UNCLEAR` and the reserved
+`CONDITIONAL_TRIPLET` are rejected at parse time — a gold label for a type v1 does not detect would
+score against nothing and depress recall for a reason unrelated to the system's quality.
+
+**How I verified it.** Four gates green (ruff, ruff-format, mypy --strict over 59 files, 210
+tests). Twenty-one tests covering order-independent ids, the type validator, review verdicts
+removing pairs from the usable set, the cross-model guard in all three states, matching including
+the reversed-gold and wrong-section cases, type disagreement still counting as a match, the
+document-level degradation path, collision detection, and JSON round-tripping.
+
+**Provenance.** Mine, recommended and accepted before implementation. The document-level
+degradation and the `None` cross-model state were both added after I wrote the first version and
+found it would fail quietly rather than loudly.
+
+## D37 — The benchmark generator is GPT-4.1, added as a second provider behind a shared protocol (2026-08-01)
+
+**Decision.** Synthetic benchmark generation uses **`gpt-4.1`** via a new `OpenAIClient` in
+`llm.py`, alongside the existing Anthropic `LLMClient`. Both satisfy a new `StructuredLLM`
+protocol and share `CostTracker`. `openai>=2.52` is now a direct dependency, and `config.py`
+gains `generator_model: str = "gpt-4.1"`. This deviates from the spec's suggested `gpt-4o`.
+
+**Why a second provider at all.** §9.1's headline v2 requirement is that the benchmark be
+generated by a *different model family* than the judge. Generating and judging with one family
+partly measures a model recognising its own house style, which inflates scores in a way that does
+not transfer to real corpora — and this project's whole credibility argument rests on not doing
+that. Claude judges, so something that is not Claude must generate.
+
+**Why GPT-4.1 rather than the spec's GPT-4o.** The spec names GPT-4o as an *example* of a
+different family; the requirement is the family, not the model. I checked current published rates
+rather than trusting a remembered number:
+
+| model | input /Mtok | output /Mtok |
+|---|---|---|
+| gpt-4o | $2.50 | $10.00 |
+| gpt-4.1 | $2.00 | $8.00 |
+| gpt-5 | $1.25 | $10.00 |
+
+GPT-4.1 wins on the three properties a *generator* actually needs. Instruction-following fidelity
+— it must produce exactly the requested contradiction type, leave the surrounding document intact
+and emit valid structured JSON, which is a compliance task rather than a reasoning one.
+Reproducibility — `temperature=0` plus `seed`, which §9.1 requires. And predictable cost, at 20%
+under GPT-4o.
+
+I looked seriously at GPT-5, whose input is *half* GPT-4o's. I rejected it for exactly the
+properties above: reasoning tokens bill as output and make cost unpredictable, and reasoning models
+tend to disregard `temperature` and `seed`. Non-determinism in the instrument you measure with is
+the wrong trade at any price. It is a one-line config change if that judgement turns out wrong.
+
+**Options considered.**
+- *Second provider, GPT-4.1* (chosen).
+- *Second provider, GPT-4o* — the spec's literal suggestion; dearer and no better here.
+- *Generate with a different Claude model (Opus vs Sonnet)* — same family, so it fails the actual
+  requirement while appearing to satisfy it. The worst option, because it looks compliant.
+- *Skip synthetic generation, do the real-corpus check only* — a real fallback if no key existed,
+  and arguably the more credible result, but it abandons per-type metrics entirely.
+
+**Design.** `OpenAIClient` mirrors `LLMClient`'s surface exactly rather than generalising it, and
+both are described by a `StructuredLLM` protocol — the same pattern already used for `NLIScorer`,
+`Reranker` and the embedders. Refactoring `LLMClient` into a provider-generic base would have
+touched a module that four verified stages depend on, to no benefit: the two SDKs differ enough in
+their error and usage shapes that the shared part is only the signature.
+
+`CostTracker.record` gained a provider-neutral sibling, `record_tokens`, so a second SDK's usage
+object need not be translated into Anthropic's `Usage` just to be priced. A test asserts the two
+paths agree, since a drift between them would corrupt cost reporting silently.
+
+**One rate is deliberately wrong, in the safe direction.** OpenAI cached input tokens are billed
+here at the **full** input rate, because OpenAI reports cached tokens inside `prompt_tokens` rather
+than as a separate counter with a stable discount. That overestimates spend when prompt caching
+engages. Overestimating stops an audit early; underestimating lets it overrun a ceiling that exists
+precisely to prevent that. Anthropic's cache rates are modelled exactly because that provider
+reports reads and writes separately.
+
+**Truncation is typed here, unlike D32.** The OpenAI SDK raises `LengthFinishReasonError`, so the
+`max_tokens` overflow that cost an hour on the Anthropic path — where it surfaces as a
+`pydantic.ValidationError` that has to be sniffed by error shape — is a one-line `except` here.
+Both paths converge on the same `LLMTruncationError`, so callers do not care which provider they
+are on.
+
+**A test that had quietly stopped testing anything.** Adding OpenAI pricing broke
+`test_unpriced_model_raises`, which used `"gpt-4o"` as its example of an unpriced model. It had been
+passing for the right reason and would have started passing for no reason at all the moment that
+model was priced — except it failed loudly instead, because the fake response then flowed into the
+logging path. It now uses `"not-a-real-model"` and asserts on the error message. Worth recording:
+a negative test keyed on a real external identifier has an expiry date.
+
+**How I verified it.** Four gates green (ruff, ruff-format, mypy --strict over 59 files, **221
+tests**). Eleven new tests cover pricing, the neutral recording path agreeing with the Anthropic
+one, the missing-key error, parsed output with cost recorded, unpriced-model refusal, the ceiling
+blocking before dispatch, typed truncation, API errors, refusals, missing parsed output, and two
+providers sharing one tracker. Then a live call: `gpt-4.1` produced a valid `NUMERICAL_MISMATCH`
+injection through structured output for **$0.00095**, which extrapolates to roughly $1–2 for the
+full 200-pair benchmark.
+
+**Provenance.** Mine. I recommended GPT-4.1 over the spec's GPT-4o with the pricing table above and
+the reasoning-model argument against GPT-5; accepted before implementation.

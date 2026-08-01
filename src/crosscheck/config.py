@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     # Haiku 4.5 is the cheaper option to benchmark for high-volume extraction (see D12).
     judge_model: str = "claude-sonnet-4-6"
     extraction_model: str = "claude-sonnet-4-6"
+    # Benchmark generation only. MUST stay a different model family from judge_model —
+    # generating and judging with one family measures self-recognition, not detection
+    # (spec v2 §9.1). GoldSet.cross_model records the comparison in the benchmark data.
+    generator_model: str = "gpt-4.1"
 
     # --- LLM call tuning (Phase 1) ---
     llm_max_tokens: int = 2048

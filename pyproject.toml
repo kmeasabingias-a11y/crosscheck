@@ -24,6 +24,7 @@ dependencies = [
     # torch is pulled by sentence-transformers; declared here so the CPU-wheel source
     # pin below binds to it (uv sources only apply to declared deps). See D22.
     "torch>=2.2",
+    "openai>=2.52.0",
 ]
 [project.scripts]
 crosscheck = "crosscheck.cli:app"
