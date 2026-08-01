@@ -234,6 +234,26 @@ def test_audit_runs_all_stages_and_reports_a_contradiction(tmp_path: Path) -> No
     }
 
 
+def test_every_claim_resolves_to_a_readable_citation(tmp_path: Path) -> None:
+    """D33: aggregation must be able to cite a claim without re-parsing the corpus."""
+    corpus = _corpus(tmp_path, _DOC_A, _DOC_B)
+    settings = _settings(tmp_path)
+    fake = _FakeAnthropic(_verdict())
+    components, llm = _components(corpus, settings, fake)
+
+    result = audit(corpus, settings, llm=llm, components=components)
+
+    index = result.document_index
+    assert sorted(ref.filename for ref in result.documents) == ["doc_0.txt", "doc_1.txt"]
+    assert result.document_ids == [ref.doc_id for ref in result.documents]
+    for claim in result.claims:
+        ref = index[claim.doc_id]
+        assert ref.section(claim.section_id) is not None
+    # The refs carry citations, not the corpus: no source text rides along in them.
+    refs_json = "".join(ref.model_dump_json() for ref in result.documents)
+    assert _DOC_A not in refs_json and _DOC_B not in refs_json
+
+
 def test_no_contradiction_is_a_successful_empty_result(tmp_path: Path) -> None:
     corpus = _corpus(tmp_path, _DOC_A, _DOC_B)
     settings = _settings(tmp_path)

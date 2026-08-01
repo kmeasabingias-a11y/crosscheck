@@ -8,7 +8,7 @@ a renamed LLM output key, say — fails loudly instead of being silently dropped
 """
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -42,6 +42,64 @@ class Document(CrossCheckModel):
     title: str | None = None
     sections: list[Section] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SectionRef(CrossCheckModel):
+    """A citable pointer to one section, without its text.
+
+    Carries what a citation needs — the heading a reader recognises and, for paginated
+    formats, the pages it spans — and nothing more.
+    """
+
+    section_id: str
+    heading: str | None = None
+    page_span: tuple[int, int] | None = None
+
+
+class DocumentRef(CrossCheckModel):
+    """A citable pointer to a source document, without its text (spec v2 §7.5).
+
+    Claims identify their origin by content hash (``doc_id`` / ``section_id``), which is stable
+    but unreadable. Aggregation has to turn those hashes back into
+    "01_employee_handbook.md § 2. Paid Time Off", so an audit carries one ref per ingested
+    document.
+
+    Deliberately excludes section text. The report renders each claim's own
+    ``evidence_quote``, so the text would be redundant — and an audit result is something you
+    hand to someone, which is reason enough not to embed the full text of every document that
+    was audited.
+    """
+
+    doc_id: str
+    source_path: Path
+    title: str | None = None
+    sections: list[SectionRef] = Field(default_factory=list)
+
+    @classmethod
+    def from_document(cls, document: Document) -> Self:
+        """Build a ref from a parsed document, dropping every section's text."""
+        return cls(
+            doc_id=document.doc_id,
+            source_path=document.source_path,
+            title=document.title,
+            sections=[
+                SectionRef(
+                    section_id=section.section_id,
+                    heading=section.heading,
+                    page_span=section.page_span,
+                )
+                for section in document.sections
+            ],
+        )
+
+    @property
+    def filename(self) -> str:
+        """The file name, which is what a citation shows."""
+        return self.source_path.name
+
+    def section(self, section_id: str) -> SectionRef | None:
+        """Return that section's ref, or ``None`` if this document has no such section."""
+        return next((ref for ref in self.sections if ref.section_id == section_id), None)
 
 
 class Chunk(CrossCheckModel):

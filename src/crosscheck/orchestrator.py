@@ -44,7 +44,7 @@ from crosscheck.ingestion.chunking import chunk_document
 from crosscheck.ingestion.claim_extractor import ClaimExtractor, DiskClaimCache
 from crosscheck.ingestion.parsers import UnsupportedFormatError, parse
 from crosscheck.llm import CostCeilingError, CostTracker, LLMClient
-from crosscheck.models import Claim, CrossCheckModel, Pair, Verdict
+from crosscheck.models import Claim, CrossCheckModel, DocumentRef, Pair, Verdict
 from crosscheck.retrieval.candidate_gen import (
     CandidateStrategy,
     build_candidate_strategy,
@@ -122,11 +122,15 @@ class AuditResult(CrossCheckModel):
     :class:`~crosscheck.models.Verdict` identifies its pair by id only — aggregation needs the
     claim text to render a side-by-side view (§7.5), and the eval harness needs the negatives
     as well as the positives (§9.2).
+
+    ``documents`` holds one :class:`~crosscheck.models.DocumentRef` per ingested document, so a
+    report can turn a claim's ``doc_id`` / ``section_id`` hashes back into a readable citation
+    without re-parsing the corpus (D33).
     """
 
     audit_id: str
     corpus_path: Path
-    document_ids: list[str] = Field(default_factory=list)
+    documents: list[DocumentRef] = Field(default_factory=list)
     claims: list[Claim] = Field(default_factory=list)
     judged_pairs: list[Pair] = Field(default_factory=list)
     verdicts: list[Verdict] = Field(default_factory=list)
@@ -136,6 +140,16 @@ class AuditResult(CrossCheckModel):
         default=False, description="True if a cost ceiling stopped the audit early (§4)."
     )
     partial_reason: str | None = None
+
+    @property
+    def document_ids(self) -> list[str]:
+        """The ingested documents' ids, in ingestion order."""
+        return [document.doc_id for document in self.documents]
+
+    @property
+    def document_index(self) -> dict[str, DocumentRef]:
+        """The ingested documents keyed by ``doc_id``, for resolving a claim's citation."""
+        return {document.doc_id: document for document in self.documents}
 
     @property
     def contradictions(self) -> list[Verdict]:
@@ -298,7 +312,7 @@ def audit(
             state_dir,
             stage="ingest",
             claims=ingestion.claims,
-            document_ids=ingestion.document_ids,
+            documents=ingestion.documents,
             llm=llm,
             partial=ingestion.partial,
             partial_reason=ingestion.reason,
@@ -350,7 +364,7 @@ def audit(
         state_dir,
         stage="judge",
         claims=claims,
-        document_ids=ingestion.document_ids,
+        documents=ingestion.documents,
         judged_pairs=list(survivors),
         verdicts=judged.verdicts,
         llm=llm,
@@ -364,7 +378,7 @@ class _Ingestion:
     """What the ingest loop produced, plus whether the audit ceiling cut it short."""
 
     claims: list[Claim]
-    document_ids: list[str]
+    documents: list[DocumentRef]
     partial: bool = False
     reason: str | None = None
 
@@ -389,7 +403,7 @@ def _ingest(
     audit_ceiling = llm.cost_ceiling_usd
     doc_cap = settings.max_document_cost_usd
     claims: list[Claim] = []
-    document_ids: list[str] = []
+    documents: list[DocumentRef] = []
     for path in files:
         try:
             document = parse(path)
@@ -405,7 +419,7 @@ def _ingest(
                 logger.warning("ingestion stopped at the audit cost ceiling: {}", exc)
                 return _Ingestion(
                     claims=claims,
-                    document_ids=document_ids,
+                    documents=documents,
                     partial=True,
                     reason="audit cost ceiling reached while extracting claims",
                 )
@@ -416,7 +430,7 @@ def _ingest(
                 doc_cap,
             )
             continue
-        document_ids.append(document.doc_id)
+        documents.append(DocumentRef.from_document(document))
         stats.document_count += 1
         stats.chunk_count += len(chunks)
         claims.extend(extraction.claims)
@@ -432,7 +446,7 @@ def _ingest(
         stats.chunk_count,
         stats.claim_count,
     )
-    return _Ingestion(claims=claims, document_ids=document_ids)
+    return _Ingestion(claims=claims, documents=documents)
 
 
 def _discover_documents(corpus: Path) -> list[Path]:
@@ -511,7 +525,7 @@ def _finish(
     *,
     stage: str,
     claims: list[Claim] | None = None,
-    document_ids: list[str] | None = None,
+    documents: list[DocumentRef] | None = None,
     judged_pairs: list[Pair] | None = None,
     verdicts: list[Verdict] | None = None,
     llm: LLMClient | None = None,
@@ -522,7 +536,7 @@ def _finish(
     result = AuditResult(
         audit_id=aid,
         corpus_path=corpus,
-        document_ids=document_ids or [],
+        documents=documents or [],
         claims=claims or [],
         judged_pairs=judged_pairs or [],
         verdicts=verdicts or [],
