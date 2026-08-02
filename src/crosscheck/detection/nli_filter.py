@@ -8,6 +8,9 @@ rather than thousands.
 
 **Recall is the priority here** (precision is recovered by the judge): a pair is kept if
 contradiction is the NLI model's top label **or** its contradiction probability clears a threshold.
+Note that the OR makes the threshold meaningful only *below* 0.5: with three labels a
+contradiction probability of 0.5 or more is necessarily the argmax, so any higher threshold
+reduces to the argmax arm alone and filters nothing extra (D41).
 Thresholds are **per contradiction type** (§7.4) — numerical mismatch and direct negation calibrate
 very differently from scope/jurisdiction. The type is usually unknown before the judge, so the
 filter then uses the **most permissive** (lowest) threshold; a caller that has a type hint (e.g. the

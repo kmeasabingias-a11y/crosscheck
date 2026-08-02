@@ -2316,3 +2316,124 @@ everywhere except here.
 **Provenance.** Mine, found by the probe rather than by review. The duplication was flagged in
 walkthrough 30 before it caused harm; this is the second time a real-document run has found what
 the fictional corpus could not (D38 was the first).
+
+## D41 — The NLI threshold moves 0.5 → 0.05, because above ~0.49 it was mathematically a no-op; per-type thresholds stay empty (2026-08-02)
+
+**Decision.** `nli_default_threshold` goes **0.5 → 0.05**, calibrated against the 139-pair GDPR
+benchmark. `nli_thresholds` stays **empty** — I am not filling in per-type values. Both the
+`config.py` comment and the `nli_filter.py` docstring now record why, because the reasoning is not
+recoverable from the numbers alone.
+
+**The finding: the knob had never done anything.** D28's keep rule is *contradiction is the argmax*
+**OR** *P(contradiction) ≥ threshold*. With three labels, a contradiction probability of 0.5 or more
+**forces** contradiction to be the argmax — the other two labels have at most 0.5 left to share. So
+every threshold at or above ~0.49 collapses to the argmax arm alone and filters nothing extra. The
+shipped default of 0.5 sat exactly on that boundary. I verified it rather than reasoning it out:
+across all 4,790 post-rerank pairs, the number kept by the probability arm but not the argmax arm is
+**zero**, and the highest contradiction probability among all non-argmax pairs is **0.4890**. Since
+D28 the threshold has been decorative; the filter has always been pure argmax.
+
+That is the real result here. The sweep I set out to run was a recall/cost tuning exercise; what it
+actually found was a config value that could never have had an effect at any setting we would
+plausibly have tried, since every "more permissive" value we might have reached for (0.4, 0.45)
+barely moves and everything above is identical.
+
+**What the sweep bought.** The curve, at the operating points that matter:
+
+| threshold | pairs judged | NLI-stage gold recall |
+|---|---|---|
+| 0.50 (old, = argmax only) | 875 | 120/138 = 87.0% |
+| 0.20 | 973 | 121/138 = 87.7% |
+| 0.10 | 1028 | 122/138 = 88.4% |
+| **0.05 (chosen)** | **1105** | **123/138 = 89.1%** |
+| 0.02 | 1272 | 124/138 = 89.9% |
+| 0.00 (no filter) | 4790 | 138/138 = 100% |
+
+0.05 is the knee. It buys 3 gold pairs for 230 extra judged pairs (+26%, about +$0.60 a run at the
+measured Haiku rate). The next step down, 0.02, pays 167 more pairs for a single additional gold
+pair, and below that the curve falls off a cliff into judging everything.
+
+**Why §7.4's ≥95% recall target is not reachable by tuning, and why I am not going to pretend
+otherwise.** Four of the five types only clear 95% at a threshold of essentially zero. The reason is
+in the distribution of what gets dropped: of the 18 gold pairs the filter loses, **14 score below
+P=0.02** and 8 below 0.005. DeBERTa is not marginally uncertain about these — it is confidently
+wrong. Only the top four dropped pairs (0.279, 0.159, 0.078, 0.020) are anywhere near a decision
+boundary, and 0.05 collects three of them. Reaching 95% means setting the threshold to 0 and
+judging all 4,790 pairs, which deletes the filter's entire reason for existing (~$12.45 versus
+~$2.27 per run) and would still be a worse trade than spending that money on a better second stage.
+So the residual is a **model limitation, recorded as such**, not an open tuning task. `temporal_conflict`
+is worst at 71% and that is the expected shape: superseding language is semantically unlike the text
+it supersedes, which is not what an NLI model is trained on.
+
+**Why `nli_thresholds` stays empty.** Two independent reasons, either sufficient. First, production
+never has a type hint — the type is what the judge decides — so `filter_pairs` takes
+`min(default, *thresholds.values())`, and five calibrated per-type numbers would collapse to
+whichever is lowest. Second, per the no-op finding, any of those values above ~0.49 would be inert
+anyway. Per-type thresholds remain genuinely useful as a **diagnostic** — they are how I know
+`temporal_conflict` is the weak type — and `filter_pairs` keeps the `type_hints` parameter so the
+eval harness can use them with gold types. They are just not a shippable knob, and filling the dict
+in would have implied a precision the mechanism does not have.
+
+**Options considered.**
+- *0.05, and treat the rest as a model limit* (chosen).
+- *Leave it at 0.5.* Defensible on cost, and it is what the system has effectively been running.
+  Rejected because it costs 3 recoverable gold pairs for $0.60, and mainly because leaving a value
+  that provably does nothing is a trap for whoever reads the config next — including me.
+- *0.02, for the maximum non-degenerate recall.* One more gold pair for 167 more judged pairs; the
+  worst marginal rate on the whole curve short of collapsing to 0.
+- *0.00 to hit the §7.4 ≥95% target.* Meets the letter of the spec by disabling the stage. This is
+  the option I would have had to take to report "target met", and it is not worth it — I would
+  rather report 89.1% with the reason than 100% with no filter.
+- *Fill in per-type thresholds.* Inert for the two reasons above.
+- *Swap the NLI model, or add a lexical bypass for superseding language.* The actual lever for the
+  remaining 11%, and out of scope for a config change — noted as the next Phase-6 investigation.
+
+**A note on method, because it nearly cost a second run.** `funnel.py` performed this exact
+rerank+NLI computation and discarded the scores, so any threshold question meant paying ~25 minutes
+of CPU again. This time the scoring pass dumps every pair's full three-way distribution, in both
+orderings, to `nli_scores.json` (4,790 pairs, 2.7 MB), and the sweep runs offline against that file
+in under a second. Recording the argmax **separately** from the probability is what makes the dump
+reusable: the argmax arm is threshold-independent, so a dump that stored only "kept/not kept at 0.5"
+would make every raised threshold look like it lost pairs it actually keeps — and would have hidden
+the no-op finding completely.
+
+**Verified end-to-end, not just at the NLI stage.** Both runs scored with the same scorer against
+the same 139-pair gold set, same judge (`claude-haiku-4-5`), same `rerank_top_k=10`:
+
+| | t=0.50 (before) | t=0.05 (after) |
+|---|---|---|
+| Precision | 0.748 | **0.748** |
+| Recall | 0.640 | **0.662** |
+| F1 | 0.690 | **0.702** |
+| TP / FP / FN | 89 / 30 / 50 | 92 / 31 / 47 |
+| pairs judged | 874 | 1103 |
+| judge hallucinations | 5 (0.6%) | 5 (0.45%) |
+
+The sweep predicted +3 gold pairs at the NLI stage and end-to-end recall gained exactly 3. Better
+than I expected: the judge converted all three, against its 74.2% average conversion on what it
+sees. **Precision did not move** — the 229 extra pairs produced 3 true positives and 1 false
+positive. That was the one thing the offline sweep could not predict, and it is the result that
+justifies the change; had precision dropped a point or two I would have reverted to argmax-only.
+
+Per-type recall moved where the dropped-pair probabilities said it would: obligation_reversal
+.667 → .733 (+2) and scope_jurisdiction .552 → .586 (+1). direct_negation, numerical_mismatch and
+temporal_conflict are unchanged — every one of their remaining misses sits below P=0.02.
+
+**On cost, do not read the headline.** The new run cost $0.5759 against the baseline's $0.6998,
+which looks like a saving and is not one — it is an artifact of 892 cache hits versus 624. Per call
+both runs sit at ~$0.0027. The honest statement is the one from the sweep: this config judges 26%
+more pairs, so on a cold cache it costs about a quarter more.
+
+**Reproducing this requires setting the judge model explicitly.** `.env` pins
+`CROSSCHECK_JUDGE_MODEL=claude-sonnet-4-6`, but every benchmark number in this file was produced
+with Haiku via a command-line override. I lost a $1.50 run to that: the verdict cache key folds in
+the judge model (deliberately — §9.3 cross-model runs must never serve one model's verdicts for
+another), so a Sonnet run missed all 764 Haiku-keyed verdicts, paid Sonnet's 3× rate, and hit the
+cost ceiling at 194 of 1,103 pairs. Two things worth keeping from that: the ceiling behaved exactly
+as §2 requires — stopped dispatch, finalized a well-formed report, set `partial` with a reason —
+and `resumed.cost_usd` is **logged but never seeded into the `CostTracker`**, so `--max-cost` bounds
+the current run's spend only, not the audit's lifetime spend. Worth knowing before trusting a
+ceiling on a resumed audit.
+
+**Provenance.** Mine. The sweep was the step I had queued after the Phase-5 funnel diagnostic
+identified NLI as the binding constraint (18 of 19 pre-judge losses, retrieval at 100%).

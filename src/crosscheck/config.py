@@ -142,10 +142,21 @@ class Settings(BaseSettings):
     # A 3-way NLI cross-encoder pre-screens candidate pairs before the (expensive) LLM judge: a
     # pair is kept if "contradiction" is the top label OR its contradiction probability clears a
     # threshold. Thresholds are PER contradiction type (§7.4); the type is usually unknown before
-    # the judge, so the filter then uses the most permissive (lowest) threshold. `nli_thresholds`
-    # stays empty until Phase-6 calibration fills it — until then every pair uses the default.
+    # the judge, so the filter then uses the most permissive (lowest) threshold.
+    #
+    # The default is 0.05, calibrated against the 139-pair GDPR benchmark (D41). It has to live
+    # BELOW 0.5 to have any effect at all: with three labels, P(contradiction) >= 0.5 forces
+    # contradiction to be the argmax, so under the "argmax OR threshold" keep rule every value at
+    # or above ~0.49 is exactly the argmax-only rule. The original 0.5 was therefore a no-op —
+    # measured on the benchmark, not one pair in 4,790 was kept by its probability arm.
+    #
+    # 0.05 is the knee of the recall/cost curve: it lifts NLI-stage recall 87.0% -> 89.1% for a
+    # 26% larger judge batch. Do not read the remaining loss as a tuning problem — 14 of the 18
+    # gold pairs this filter drops score below P=0.02, which is a limit of the NLI model rather
+    # than of the threshold. `nli_thresholds` stays empty: the type is unknown pre-judge, so
+    # per-type values would collapse to their minimum anyway (see D41).
     nli_model: str = "cross-encoder/nli-deberta-v3-base"
-    nli_default_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    nli_default_threshold: float = Field(default=0.05, ge=0.0, le=1.0)
     nli_thresholds: dict[ContradictionType, float] = Field(default_factory=dict)
 
     # --- Audit state (Phase 3, spec §4 — resume / idempotency) ---
