@@ -11,6 +11,8 @@ from crosscheck import __version__, orchestrator
 from crosscheck.aggregation.html_renderer import write_html
 from crosscheck.aggregation.report import build_report, write_json
 from crosscheck.config import get_settings
+from crosscheck.evaluation.metrics import DEFAULT_OVERLAP_THRESHOLD
+from crosscheck.evaluation.runner import BenchmarkSpec, evaluate, write_run
 from crosscheck.llm import LLMError
 from crosscheck.logging_config import configure_logging
 
@@ -135,3 +137,44 @@ def _summarize(result: "orchestrator.AuditResult") -> None:
     )
     if result.partial:
         typer.secho(f"Audit is PARTIAL: {result.partial_reason}", fg=typer.colors.RED, err=True)
+
+
+@app.command()
+def eval(  # noqa: A001 - `eval` is the natural command name; it shadows the builtin only here
+    gold: Annotated[Path, typer.Argument(help="Gold-label JSON for the benchmark.")],
+    report: Annotated[Path, typer.Argument(help="Contradiction report JSON to score.")],
+    name: Annotated[
+        str, typer.Option("--name", help="Label for this benchmark in the report.")
+    ] = "benchmark",
+    out: Annotated[
+        Path, typer.Option("--out", help="Results root; a timestamped subdirectory is created.")
+    ] = Path("benchmarks/results"),
+    overlap_threshold: Annotated[
+        float, typer.Option("--overlap-threshold", help="Lexical-overlap cut for the strata.")
+    ] = DEFAULT_OVERLAP_THRESHOLD,
+) -> None:
+    """Score a contradiction report against a gold set and write an evaluation report.
+
+    Scoring is free and instant - it reads a report `crosscheck audit` already produced
+    rather than re-running the pipeline, so iterating on the numbers costs nothing.
+    """
+    try:
+        run = evaluate(
+            [BenchmarkSpec(name=name, gold_path=gold, report_path=report)],
+            get_settings(),
+            overlap_threshold=overlap_threshold,
+            generated_at=datetime.now(UTC),
+        )
+    except FileNotFoundError as exc:
+        typer.secho(f"not found: {exc.filename}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+
+    destination = write_run(run, out)
+    scored = run.benchmarks[0].metrics.grouped.overall
+    typer.echo(
+        f"{name}: precision {scored.precision:.3f} - recall {scored.recall:.3f} - "
+        f"F1 {scored.f1:.3f}"
+    )
+    for warning in run.benchmarks[0].warnings:
+        typer.secho(f"warning: {warning}", fg=typer.colors.YELLOW, err=True)
+    typer.echo(f"wrote {destination}")

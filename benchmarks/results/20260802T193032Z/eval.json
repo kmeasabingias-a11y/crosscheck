@@ -1,0 +1,385 @@
+{
+  "generated_at": "2026-08-02T19:30:32.664756Z",
+  "config": {
+    "crosscheck_version": "0.1.0",
+    "judge_model": "claude-haiku-4-5",
+    "extraction_model": "claude-sonnet-4-6",
+    "retrieval_strategy": "hybrid",
+    "retrieval_top_k": 25,
+    "rerank_model": "BAAI/bge-reranker-v2-m3",
+    "rerank_top_k": 10,
+    "nli_model": "cross-encoder/nli-deberta-v3-base",
+    "nli_default_threshold": 0.05,
+    "nli_thresholds": {},
+    "overlap_threshold": 0.3,
+    "calibration_bins": 10
+  },
+  "benchmarks": [
+    {
+      "name": "synthetic-v1",
+      "gold_path": "benchmarks/synthetic/v1/gold.json",
+      "report_path": "benchmarks/synthetic/v1/report.json",
+      "gold": {
+        "name": "gdpr-synthetic",
+        "version": "v1",
+        "origin": "injected",
+        "seed": 20260801,
+        "generator_model": "gpt-4.1",
+        "judge_model_at_authoring": "claude-haiku-4-5",
+        "cross_model": true,
+        "pair_count": 139,
+        "usable_pair_count": 139,
+        "type_counts": {
+          "direct_negation": 30,
+          "numerical_mismatch": 29,
+          "temporal_conflict": 21,
+          "obligation_reversal": 30,
+          "scope_jurisdiction": 29
+        }
+      },
+      "metrics": {
+        "gold_pair_count": 139,
+        "finding_count": 108,
+        "verdict_count": 256,
+        "grouped": {
+          "granularity": "grouped",
+          "overall": {
+            "true_positives": 92,
+            "false_positives": 16,
+            "false_negatives": 47
+          },
+          "by_type": {
+            "direct_negation": {
+              "true_positives": 22,
+              "false_positives": 8,
+              "false_negatives": 8
+            },
+            "numerical_mismatch": {
+              "true_positives": 19,
+              "false_positives": 2,
+              "false_negatives": 10
+            },
+            "obligation_reversal": {
+              "true_positives": 22,
+              "false_positives": 4,
+              "false_negatives": 8
+            },
+            "scope_jurisdiction": {
+              "true_positives": 17,
+              "false_positives": 2,
+              "false_negatives": 12
+            },
+            "temporal_conflict": {
+              "true_positives": 12,
+              "false_positives": 0,
+              "false_negatives": 9
+            }
+          },
+          "strata": [
+            {
+              "name": "high_overlap",
+              "threshold": 0.3,
+              "counts": {
+                "true_positives": 51,
+                "false_positives": 2,
+                "false_negatives": 20
+              }
+            },
+            {
+              "name": "low_overlap",
+              "threshold": 0.3,
+              "counts": {
+                "true_positives": 41,
+                "false_positives": 14,
+                "false_negatives": 27
+              }
+            }
+          ],
+          "calibration": {
+            "bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.30000000000000004,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.30000000000000004,
+                "upper": 0.4,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6000000000000001,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.6000000000000001,
+                "upper": 0.7000000000000001,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.7000000000000001,
+                "upper": 0.8,
+                "count": 2,
+                "mean_confidence": 0.75,
+                "accuracy": 0.5
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 24,
+                "mean_confidence": 0.8475000000000001,
+                "accuracy": 0.6666666666666666
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 82,
+                "mean_confidence": 0.9342682926829277,
+                "accuracy": 0.9146341463414634
+              }
+            ],
+            "expected_error": 0.05972222222222286,
+            "max_error": 0.25,
+            "brier": 0.12184537037037037,
+            "sample_count": 108
+          },
+          "duplicate_count": 0,
+          "matched_count": 92,
+          "type_agreement": 0.41304347826086957,
+          "type_confusion": {
+            "direct_negation": {
+              "direct_negation": 16,
+              "numerical_mismatch": 1,
+              "obligation_reversal": 4,
+              "scope_jurisdiction": 1
+            },
+            "numerical_mismatch": {
+              "direct_negation": 10,
+              "numerical_mismatch": 6,
+              "obligation_reversal": 2,
+              "scope_jurisdiction": 1
+            },
+            "obligation_reversal": {
+              "direct_negation": 14,
+              "numerical_mismatch": 1,
+              "obligation_reversal": 7
+            },
+            "scope_jurisdiction": {
+              "direct_negation": 8,
+              "obligation_reversal": 4,
+              "scope_jurisdiction": 5
+            },
+            "temporal_conflict": {
+              "direct_negation": 2,
+              "obligation_reversal": 4,
+              "scope_jurisdiction": 2,
+              "temporal_conflict": 4
+            }
+          }
+        },
+        "per_verdict": {
+          "granularity": "per_verdict",
+          "overall": {
+            "true_positives": 92,
+            "false_positives": 31,
+            "false_negatives": 47
+          },
+          "by_type": {
+            "direct_negation": {
+              "true_positives": 22,
+              "false_positives": 17,
+              "false_negatives": 8
+            },
+            "numerical_mismatch": {
+              "true_positives": 19,
+              "false_positives": 6,
+              "false_negatives": 10
+            },
+            "obligation_reversal": {
+              "true_positives": 22,
+              "false_positives": 5,
+              "false_negatives": 8
+            },
+            "scope_jurisdiction": {
+              "true_positives": 17,
+              "false_positives": 3,
+              "false_negatives": 12
+            },
+            "temporal_conflict": {
+              "true_positives": 12,
+              "false_positives": 0,
+              "false_negatives": 9
+            }
+          },
+          "strata": [
+            {
+              "name": "high_overlap",
+              "threshold": 0.3,
+              "counts": {
+                "true_positives": 51,
+                "false_positives": 9,
+                "false_negatives": 20
+              }
+            },
+            {
+              "name": "low_overlap",
+              "threshold": 0.3,
+              "counts": {
+                "true_positives": 41,
+                "false_positives": 22,
+                "false_negatives": 27
+              }
+            }
+          ],
+          "calibration": {
+            "bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.30000000000000004,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.30000000000000004,
+                "upper": 0.4,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6000000000000001,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.6000000000000001,
+                "upper": 0.7000000000000001,
+                "count": 0,
+                "mean_confidence": 0.0,
+                "accuracy": 0.0
+              },
+              {
+                "lower": 0.7000000000000001,
+                "upper": 0.8,
+                "count": 3,
+                "mean_confidence": 0.7399999999999999,
+                "accuracy": 0.3333333333333333
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 29,
+                "mean_confidence": 0.847931034482759,
+                "accuracy": 0.5517241379310345
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 91,
+                "mean_confidence": 0.9345054945054955,
+                "accuracy": 0.8241758241758241
+              }
+            ],
+            "expected_error": 0.16138211382113904,
+            "max_error": 0.40666666666666657,
+            "brier": 0.20478292682926824,
+            "sample_count": 123
+          },
+          "duplicate_count": 133,
+          "matched_count": 92,
+          "type_agreement": 0.41304347826086957,
+          "type_confusion": {
+            "direct_negation": {
+              "direct_negation": 16,
+              "numerical_mismatch": 1,
+              "obligation_reversal": 4,
+              "scope_jurisdiction": 1
+            },
+            "numerical_mismatch": {
+              "direct_negation": 10,
+              "numerical_mismatch": 6,
+              "obligation_reversal": 2,
+              "scope_jurisdiction": 1
+            },
+            "obligation_reversal": {
+              "direct_negation": 14,
+              "numerical_mismatch": 1,
+              "obligation_reversal": 7
+            },
+            "scope_jurisdiction": {
+              "direct_negation": 8,
+              "obligation_reversal": 4,
+              "scope_jurisdiction": 5
+            },
+            "temporal_conflict": {
+              "direct_negation": 2,
+              "obligation_reversal": 4,
+              "scope_jurisdiction": 2,
+              "temporal_conflict": 4
+            }
+          }
+        },
+        "hallucination_rate": 0.004533091568449683,
+        "decontextualization_rate": 0.010438413361169102,
+        "cost_usd": 0.5759429999999998,
+        "cost_per_100_documents": 11.518859999999995,
+        "partial": false,
+        "partial_reason": null
+      }
+    }
+  ]
+}

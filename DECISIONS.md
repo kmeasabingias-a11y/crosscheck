@@ -2522,3 +2522,73 @@ hybrid retrieval (D24) is earning its place, and it belongs in the README next t
 **Provenance.** Mine. I found the unit mismatch while answering my own question about whether the
 score was any good — which is an argument for having to explain a number to someone, and for not
 leaving the thing that computes your headline in a scratch folder outside the repo.
+
+## D43 — The evaluation runner does not run the pipeline, and every report it writes carries the configuration it was scored under (2026-08-03)
+
+**Decision.** Added `src/crosscheck/evaluation/runner.py` and a `crosscheck eval` command. It loads
+labelled benchmarks with the reports produced for them, scores each through `metrics.py` (D42), and
+writes a timestamped directory under `benchmarks/results/` containing `eval.json` (machine-readable,
+the full metrics tree) and `report.md` (the document that becomes `docs/eval-report.md`, §13).
+
+**Deviation from §7.6, deliberately.** The spec says the runner "runs the pipeline, collects
+verdicts, computes metrics". Mine does the last two and **not** the first. `crosscheck audit`
+produces the report; `crosscheck eval` scores it.
+
+The reason is that these two things have wildly different costs. An audit is ~25 minutes of CPU and
+real money; scoring is free and finishes in under a second. Welding them together means re-running
+the audit to fix a typo in a table, and it makes the numbers harder to trust rather than easier —
+every table regeneration becomes a *new* run with its own retrieval nondeterminism, so two versions
+of the same report would disagree slightly for no reason. Splitting them means the artifact is a
+pure function of a report plus a gold set, and I can iterate on presentation as many times as I like
+without touching the pipeline. The composition §7.6 describes still exists; it is just spelled as two
+commands instead of one.
+
+**Every report states its configuration, because a number without one is a rumour.** This is the
+direct lesson of the run that cost $1.50 yesterday: a benchmark audit silently used Sonnet when the
+baseline it was being compared against had used Haiku, which missed every cached verdict and hit the
+cost ceiling. Nothing about the resulting report showed which judge produced it. So `RunConfig` now
+captures judge model, extraction model, retrieval strategy and K, reranker and K, NLI model and
+thresholds, and the overlap cut, and it is rendered at the top of every report.
+
+**With an honest limitation printed in the output rather than hidden in my head.** A
+`ContradictionReport` still does not record which model judged it — `CostSummary` tracks spend, not
+models — so the configuration block describes settings **at evaluation time**. Score an old report
+under new settings and the block will describe the new ones. The markdown says exactly that, in the
+report, above the table. The real fix is to stamp the judge model onto the report at build time;
+that is a schema change touching the regression snapshot, so it is follow-up work rather than
+something to bundle here. Writing the caveat down where a reader will hit it is the honest interim.
+
+**Caveats travel with the tables.** `BenchmarkResult.warnings` computes the conditions that make
+numbers unsafe to quote — a partial audit (recall is understated, unjudged pairs count as misses), a
+non-zero `duplicate_count` at grouped granularity (the roll-up and the gold matching have diverged),
+a gold set whose generator and judge share a family (§9.1 violated, partly measuring
+self-recognition), an *unknown* cross-model status, and pairs excluded by review. They render into a
+blockquote at the top of the benchmark's section. A caveat that lives in the author's memory is not
+a caveat; this project's whole credibility argument is that the numbers come with their conditions
+attached.
+
+**Smaller choices.**
+- **Empty calibration bins are dropped from the markdown but kept in `eval.json`.** A table of
+  mostly-empty rows is noise to read; a plot needs the stable axis. Different consumers, different
+  shapes, same data.
+- **`generated_at` is optional and defaults to None**, exactly as `build_report` does (D35), so a
+  fixture-driven test can assert byte-stability. The CLI passes a real timestamp.
+- **The CLI takes one benchmark, the module API takes many.** Only the synthetic set exists today;
+  when the hand-written set lands (§9.1) it should appear as a second section of the *same* report
+  next to the synthetic one, since the whole point is reading the gap between them. The list-shaped
+  API is there so that costs nothing later; a multi-benchmark CLI syntax can wait until there is a
+  second benchmark to pass it.
+- **`eval` shadows the builtin.** Noqa'd at the definition. It is the name a user expects on the
+  command line, and the builtin is not used in that module.
+
+**Options considered.**
+- *Score-only runner, audit stays a separate command* (chosen).
+- *Runner runs the pipeline as §7.6 literally says.* Rejected on cost and reproducibility, above.
+- *Score inside `crosscheck audit` and write metrics with the report.* Tempting, and it would tie a
+  number to its run properly — but it forces a gold set to exist for every audit, which is wrong for
+  the real-corpus case where there are no labels at all.
+- *Leave the provenance block out and rely on the commit history.* This is what I effectively had,
+  and it is what cost the $1.50.
+
+**Provenance.** Mine. The provenance block exists because of a concrete failure the day before, not
+because it seemed tidy.
