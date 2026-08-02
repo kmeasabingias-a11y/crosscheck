@@ -2437,3 +2437,88 @@ ceiling on a resumed audit.
 
 **Provenance.** Mine. The sweep was the step I had queued after the Phase-5 funnel diagnostic
 identified NLI as the binding constraint (18 of 19 pre-judge losses, retrieval at 100%).
+
+## D42 — Detection metrics score findings *as displayed*; the old ad-hoc precision was mixing units and understating itself (2026-08-02)
+
+**Decision.** Added `src/crosscheck/evaluation/metrics.py`, the §9.2 scorecard, replacing the
+throwaway `score.py` I had been running out of the runs folder. The headline granularity is
+**`grouped`** — the report's findings as a user sees them, near-duplicates rolled up — with
+`per_verdict` reported beside it as a diagnostic. On the v1 GDPR benchmark this moves the numbers:
+
+| | old `score.py` | `grouped` (new headline) | `per_verdict` (diagnostic) |
+|---|---|---|---|
+| Precision | 0.748 | **0.852** | 0.748 |
+| Recall | 0.662 | **0.662** | 0.662 |
+| F1 | 0.702 | **0.745** | 0.702 |
+| TP / FP / FN | 92 / 31 / 47 | 92 / 16 / 47 | 92 / 31 / 47 |
+
+**The correction raises my own headline, so here is the argument in full.** `score.py` counted true
+positives as *gold pairs matched* (92) and false positives as *findings that matched nothing* (31),
+then divided. Those are different kinds of object: the numerator counts targets, the denominator
+adds predictions. The result is not a proportion of anything, and it was wrong in the flattering
+direction only by accident — it could as easily have gone the other way.
+
+Fixing it needs a decision about what one prediction *is*, and the codebase already answers that
+twice, consistently. The report rolls same-section near-duplicates under a single finding (D34),
+because the extractor may split one section into several claims so one disagreement surfaces as
+several verdicts. Gold labels match at section level (D36). **Both already treat the section pair as
+the unit.** Scoring the grouped findings therefore makes every column count the same object, and the
+benchmark confirms it empirically: 108 grouped findings claim 92 distinct gold pairs with **zero**
+duplicates, against 133 duplicates when near-duplicates are expanded. The units line up exactly
+because they were designed to.
+
+So `grouped` is not the generous reading, it is the only coherent one — and `metrics.py` asserts
+this rather than assuming it, reporting `duplicate_count` so that a future divergence between the
+roll-up and the gold set shows up as a number instead of silently inflating precision.
+
+**Two things I am deliberately not claiming.** The 16 remaining false positives are an *upper bound*
+on error: an injected benchmark labels only what was injected, so a finding flagging a contradiction
+that genuinely exists in GDPR but was never labelled counts against us. And section-level matching is
+coarse in our favour — a finding lands if both sides fall in the right two sections, regardless of
+whether it identified the same sentences. Precision 0.852 sits between those two biases and I would
+not defend it to three decimal places.
+
+**What the strata revealed, which is the point of building this.** Splitting by lexical overlap of
+the two claim texts (Jaccard, cut at 0.30):
+
+| stratum | P | R | F1 |
+|---|---|---|---|
+| high overlap (n=71) | 0.962 | 0.718 | 0.823 |
+| low overlap (n=68) | 0.745 | 0.603 | 0.667 |
+
+The system is clearly weaker when the two claims share little surface form — F1 drops 15.6 points —
+but it does **not** collapse, which is the failure §9.2 is watching for. A system that only catches
+near-duplicate phrasing would show a low-overlap stratum near zero. This is the number that says
+hybrid retrieval (D24) is earning its place, and it belongs in the README next to the headline.
+
+**Also decided here.**
+- **Cut at 0.30, not the median.** The benchmark's median overlap is 0.310 and 0.30 splits it 71/68.
+  A fitted cut (the exact median) would rebalance on every benchmark and stop runs being comparable;
+  a round constant does not.
+- **Jaccard on tokens, not embedding similarity.** A better similarity would be a worse stratifier —
+  it would fold in the semantic signal the strata are meant to hold constant.
+- **Duplicates are counted, never scored.** Section-level matching cannot distinguish a duplicate
+  from its parent, so calling it a false positive would punish extraction granularity.
+- **Type agreement stays out of the match test.** A mislabelled hit is still a true positive (D36);
+  finding a contradiction and typing it are separate questions, and `type_confusion` now reports the
+  full gold→predicted matrix so the low agreement (0.413 grouped) can be adjudicated rather than
+  quoted. My prior is that much of it is taxonomy overlap — an obligation reversal usually *is* also
+  a direct negation — but that is a hypothesis until someone reads the matrix.
+- **Extraction P/R is not here.** It stays in `extraction_gold.py` against its own gold set, because
+  §9.2 wants extraction attributable separately from end-to-end detection.
+- **Latency P50/P95 is not implemented.** Nothing records per-document wall-clock yet; adding the
+  metric without the instrumentation would produce a field that silently reads zero. Deferred with
+  the instrumentation, not faked.
+
+**Options considered.**
+- *Grouped as headline, per-verdict alongside* (chosen).
+- *Per-verdict as headline.* Answers "how often was the judge right", not "how often is what I am
+  shown right". It is the honest diagnostic, not the product metric.
+- *Keep the mixed-unit formula for continuity with earlier notes.* Rejected — continuity with a
+  number that is not a proportion is not worth having, and nothing is published yet.
+- *Count duplicates as false positives.* Would read precision 92/256 = 0.359 and punish the system
+  for how finely the extractor split a section.
+
+**Provenance.** Mine. I found the unit mismatch while answering my own question about whether the
+score was any good — which is an argument for having to explain a number to someone, and for not
+leaving the thing that computes your headline in a scratch folder outside the repo.
