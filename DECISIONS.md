@@ -2806,3 +2806,91 @@ rather than as no data.
   where the honesty lives, so it should not be a manual step anyone can skip.
 
 **Provenance.** Mine, executing the plan D43 recorded.
+
+---
+
+## D46 — The §9.4 real-corpus check ran on NIST SP 800-53 and found nothing, because the corpus cannot contain what the system looks for (2026-08-04)
+
+**Decision.** Ran the §9.4 sanity check on NIST SP 800-53 AU-1…AU-5, Rev 4 against Rev 5, via a new
+`scripts/build_nist_slice.py`. Result: **1 finding, 0 confirmed real.** Recorded as a negative
+result with a structural explanation rather than retried until it produced a better number.
+
+**Sized before dispatch, for once.** The full AC family estimated at ~$8.00 and the full AU family at
+~$3.60, against ~$1.89 of credit — using the ~$0.0063-per-claim rate this project paid to learn on
+the hand-written run (D44), which overran 3× because I guessed instead. AU-1…AU-5 estimated at
+$1.04; it came in at **$0.8895, complete, under a $1.40 ceiling**. The estimate is now trustworthy
+enough to plan with.
+
+**Contiguous controls, not chosen ones.** AU-1 through AU-5 are the first five of the family. Picking
+the controls where I already knew Rev 5 diverged would have made the hit rate a statement about my
+document selection rather than about the system.
+
+**The classification rule was fixed before the findings were visible**, because REAL-versus-
+REFINEMENT is genuinely arguable on a revision pair and deciding it afterwards would have made the
+figure worthless. REAL = a substantive requirement difference; REFINEMENT = renaming or
+reorganisation that changes nothing an implementer must do; ARTIFACT = spurious pairing.
+
+**The one finding is a false positive, and the reason is a domain convention.** The judge paired
+Rev 4's "The organization reviews and updates the audited events" with Rev 5's "(3) … [Withdrawn:
+Incorporated into AU-2.]" and read *Withdrawn* as removal. It is not: "Incorporated into AU-2" means
+the enhancement was folded into the base control, and Rev 5's AU-2 restates the obligation verbatim
+at item (e). NIST's withdrawal markers read as deletion to anyone who does not know the convention,
+and the judge does not.
+
+**Why almost nothing was found — the part that matters.** Counted over the two documents: **48
+`[Assignment: organization-defined …]` placeholders, zero concrete requirement values, four
+negations in ~4,100 words.** Every number in either document is a control identifier or a list
+enumerator. Even percentages are parameterised.
+
+SP 800-53 is a **control catalogue, not a set of assertions** — a template whose thresholds the
+adopting organisation fills in. That structurally rules out four of the five v1 types before the
+pipeline starts: nothing to mismatch numerically, almost no negations, no exemptions (Rev 5
+restructures and tightens, it never excuses), and no jurisdictions. Only `TEMPORAL_CONFLICT` is
+reachable, which is precisely the label the single finding carried.
+
+**So this is not a recall failure.** Finding almost nothing in a document pair containing almost
+nothing findable is correct. The system also did not manufacture noise — 217 pairs reached the judge
+and it declined 216, which is the right direction to err for an auditing tool. Reading AU-4 and AU-5
+by hand agrees: Rev 5 renames "Audit Storage Capacity" to "Audit Log Storage Capacity" and *adds* a
+time bound to AU-5's alert requirement. An implementer complying with Rev 5 is never in breach of
+Rev 4.
+
+**What it does not establish.** Transfer. Whether this system finds real conflicts in the wild is
+still an open question, and this run cannot answer it. Saying otherwise would be the exact
+over-claiming §14 warns against — the same discipline that produced the hand-written set applies to
+its own negative results.
+
+**The genuinely useful output is that §9.4's own suggested corpus is a poor test for this system**,
+for a reason verifiable with one `grep` that I would not have predicted from reading the spec. Two
+successive editions of a standard do not contradict; the later supersedes the earlier. §6's
+`TEMPORAL_CONFLICT` requires both to remain *active in the corpus*, which is false of a withdrawn
+revision.
+
+**Next corpus, deferred on budget rather than doubt:** NIST SP 800-63B Rev 3 vs Rev 4. Same publisher
+and licence, but it commits to concrete values — minimum 8 characters, permit at least 64, the
+well-known reversal on periodic password rotation — and Rev 4 revised several of them.
+
+**A one-character bug the slice script exists to avoid.** Controls are matched on the first
+whitespace token of a heading, never with `startswith`: `"AU-1"` is a prefix of `AU-10` through
+`AU-16`, so a prefix match would have silently pulled in eleven extra controls, quadrupled the
+corpus and the bill, and shown no symptom beyond a chunk count I might have shrugged at. The script
+also raises when a requested control is *missing*, since a silently-shrunk corpus is the mirror
+failure.
+
+**Where the result lives.** `benchmarks/realcorpus/nist_au/`, with its own README. It is deliberately
+**not** in `benchmarks/suite.json` and not in `docs/eval-report.md`: the runner scores against gold
+sets, and inventing labels for a corpus chosen because nobody had labelled it would defeat the
+exercise. Two kinds of evidence, two artifacts.
+
+**Options considered.**
+- *Record the negative result and defer the retry* (chosen).
+- *Retry immediately on 800-63B.* Rejected on budget — ~$0.80 of ~$1.00 left, with no reserve and no
+  way to size the slice until the documents were in hand.
+- *Widen to the whole AU family for more findings.* Rejected: it multiplies cost by four to search a
+  corpus already shown to be structurally incapable of containing four of the five types.
+- *Reclassify the withdrawal finding as REAL and report a 1-of-1 hit rate.* Rejected, and worth
+  naming as the temptation it was — the pre-registered rule exists precisely to make that
+  unavailable after the fact.
+
+**Provenance.** Mine. The structural diagnosis came from asking why the NLI pass rate was 15% here
+against 23% and 30% on the benchmarks, then counting placeholders instead of theorising.

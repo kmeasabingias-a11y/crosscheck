@@ -1,0 +1,140 @@
+{
+  "audit_id": "b7cfc14b7831b8a5",
+  "corpus_path": "/mnt/d/My_project/CrossCheck/benchmarks/realcorpus/nist_au/corpus",
+  "generated_at": "2026-08-04T16:56:07.061373Z",
+  "document_count": 2,
+  "claim_count": 145,
+  "candidate_pair_count": 2346,
+  "pairs_evaluated": 217,
+  "contradiction_count": 2,
+  "groups": [
+    {
+      "doc_a_id": "fec50e8ee59b407b",
+      "doc_b_id": "f1785da24afc0b9b",
+      "doc_a": "rev4_au_1_to_5.md",
+      "doc_b": "rev5_au_1_to_5.md",
+      "findings": [
+        {
+          "pair_id": "1fe2379cdc16f8e5",
+          "contradiction_type": "temporal_conflict",
+          "confidence": 0.85,
+          "subject": "organization",
+          "rationale": "Claim A asserts that an organization must review and update audited events at a defined frequency, presenting this as an active requirement. Claim B states that the specific control enhancement addressing this requirement (AU-2(3)) has been withdrawn and incorporated into the base control AU-2. These statements conflict because Claim A treats the review/update requirement as a standalone obligation, while Claim B indicates this enhancement has been superseded and merged into a different control structure.",
+          "resolution_hint": "Claim B represents the current state (withdrawal and incorporation), making it the authoritative version; Claim A may reflect an outdated control structure.",
+          "a": {
+            "claim_id": "5f8422ead9f18314",
+            "doc_id": "fec50e8ee59b407b",
+            "filename": "rev4_au_1_to_5.md",
+            "doc_title": "NIST SP 800-53 REV4 — Audit and Accountability (AU)",
+            "section_id": "725f0b805a0aa1d5",
+            "section_heading": "AU-2 — Audit Events",
+            "page_span": null,
+            "claim_text": "The organization must review and update the set of audited events at an organization-defined frequency.",
+            "evidence_quote": "The organization reviews and updates the audited events [Assignment: organization-defined\nfrequency].",
+            "highlight": "The organization reviews and updates the audited events [Assignment: organization-defined frequency].",
+            "highlight_span": [
+              0,
+              101
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "768aeda206be40ed",
+            "doc_id": "f1785da24afc0b9b",
+            "filename": "rev5_au_1_to_5.md",
+            "doc_title": "NIST SP 800-53 REV5 — Audit and Accountability (AU)",
+            "section_id": "b80221feaf1ea6e7",
+            "section_heading": "AU-2 — Event Logging",
+            "page_span": null,
+            "claim_text": "Control Enhancement AU-2(3) EVENT LOGGING | REVIEWS AND UPDATES has been withdrawn and incorporated into AU-2.",
+            "evidence_quote": "(3) EVENT LOGGING | REVIEWS AND UPDATES\n[Withdrawn: Incorporated into AU-2.]",
+            "highlight": "(3) EVENT LOGGING | REVIEWS AND UPDATES\n[Withdrawn: Incorporated into AU-2.]",
+            "highlight_span": [
+              0,
+              76
+            ],
+            "polarity": "negative"
+          },
+          "retrieval_score": 0.225,
+          "rerank_score": 0.032009243965148926,
+          "nli_contradiction_prob": 0.9997325278624413,
+          "near_duplicates": [
+            {
+              "pair_id": "8b2bd48f2e911b37",
+              "contradiction_type": "temporal_conflict",
+              "confidence": 0.85,
+              "subject": "AU-2",
+              "rationale": "Claim A states that AU-2(3) EVENT LOGGING | REVIEWS AND UPDATES has been withdrawn and incorporated into AU-2. Claim B asserts that AU-2(3) is currently assigned to the MODERATE and HIGH baselines as an active enhancement. These claims cannot both be true if AU-2(3) has been withdrawn; a withdrawn control cannot simultaneously be assigned to active baselines.",
+              "resolution_hint": "Claim A represents the current state (withdrawal); Claim B may reflect an outdated or superseded baseline assignment.",
+              "a": {
+                "claim_id": "b25e6118e5e1d9ea",
+                "doc_id": "fec50e8ee59b407b",
+                "filename": "rev4_au_1_to_5.md",
+                "doc_title": "NIST SP 800-53 REV4 — Audit and Accountability (AU)",
+                "section_id": "725f0b805a0aa1d5",
+                "section_heading": "AU-2 — Audit Events",
+                "page_span": null,
+                "claim_text": "AU-2 is assigned Priority 1, allocated to the LOW baseline without enhancements, and to the MODERATE and HIGH baselines with enhancement AU-2 (3).",
+                "evidence_quote": "P1 LOW AU-2 MOD AU-2 (3) HIGH AU-2 (3)",
+                "highlight": "MOD AU-2 (3) HIGH AU-2 (3)",
+                "highlight_span": [
+                  12,
+                  38
+                ],
+                "polarity": "positive"
+              },
+              "b": {
+                "claim_id": "768aeda206be40ed",
+                "doc_id": "f1785da24afc0b9b",
+                "filename": "rev5_au_1_to_5.md",
+                "doc_title": "NIST SP 800-53 REV5 — Audit and Accountability (AU)",
+                "section_id": "b80221feaf1ea6e7",
+                "section_heading": "AU-2 — Event Logging",
+                "page_span": null,
+                "claim_text": "Control Enhancement AU-2(3) EVENT LOGGING | REVIEWS AND UPDATES has been withdrawn and incorporated into AU-2.",
+                "evidence_quote": "(3) EVENT LOGGING | REVIEWS AND UPDATES\n[Withdrawn: Incorporated into AU-2.]",
+                "highlight": "[Withdrawn: Incorporated into AU-2.]",
+                "highlight_span": [
+                  40,
+                  76
+                ],
+                "polarity": "negative"
+              },
+              "retrieval_score": 0.8333334,
+              "rerank_score": 0.01867072470486164,
+              "nli_contradiction_prob": 0.9981714068121035,
+              "near_duplicates": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "type_counts": {
+    "temporal_conflict": 2
+  },
+  "stats": {
+    "document_count": 2,
+    "chunk_count": 19,
+    "claim_count": 145,
+    "candidate_pair_count": 2346,
+    "reranked_pair_count": 1450,
+    "nli_kept_count": 217,
+    "extraction_cache_hits": 0,
+    "extraction_llm_calls": 7,
+    "rejected_evidence_count": 3,
+    "decontextualization_flags": 0,
+    "truncated_chunk_count": 0,
+    "judge_cache_hits": 3,
+    "judge_llm_calls": 214,
+    "hallucination_count": 0
+  },
+  "cost": {
+    "total_usd": 0.8895330000000004,
+    "call_count": 221,
+    "input_tokens": 432098,
+    "output_tokens": 47141
+  },
+  "partial": false,
+  "partial_reason": null
+}
