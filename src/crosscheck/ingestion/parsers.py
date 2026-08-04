@@ -238,6 +238,12 @@ _PARSERS: dict[str, Callable[[Path], Document]] = {
     ".text": _parse_txt,
 }
 
+#: Extensions :func:`parse` can handle (§3 ships PDF, DOCX, Markdown and plain text). Public
+#: so a caller can filter *before* dispatching: the API skips unsupported uploads rather than
+#: failing an otherwise good multi-file request, and it should not have to catch an exception
+#: per file to find that out.
+SUPPORTED_SUFFIXES: frozenset[str] = frozenset(_PARSERS)
+
 
 def parse(path: Path) -> Document:
     """Parse a document file into a :class:`Document`, dispatching on its extension.

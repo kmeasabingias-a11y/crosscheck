@@ -2894,3 +2894,81 @@ exercise. Two kinds of evidence, two artifacts.
 
 **Provenance.** Mine. The structural diagnosis came from asking why the NLI pass rate was 15% here
 against 23% and 30% on the benchmarks, then counting placeholders instead of theorising.
+
+---
+
+## D47 — The service layer resets the claim store on every audit, runs one at a time, and reads live spend off the audit's own LLM client (2026-08-05)
+
+**Decision.** Added `src/crosscheck/api/main.py` (FastAPI), the four routes §7.7 specifies plus one
+extra, and `fastapi` / `uvicorn[standard]` / `python-multipart` as dependencies. 20 tests, 98%
+coverage on the module.
+
+**Every audit resets the claim collection, unconditionally.** This is the important one. Retrieval's
+only cross-document filter is `doc_id != self` — there is no corpus predicate anywhere in
+`claim_repo` or `candidate_gen`. On the command line an operator remembers `--reset-store` when
+switching corpora (and I nearly forgot it twice today). Through an API nobody is watching, so
+auditing corpus B after corpus A would silently pair B's claims against A's leftovers and report
+contradictions spanning two unrelated document sets — with no error, no warning, and a
+confident-looking HTML report.
+
+So the service does not expose the flag. It resets. The cost is resume-across-corpora, which an
+upload-driven service never uses: each corpus arrives once and is audited once, and the verdict
+cache still makes a *retry of the same corpus* cheap because the corpus id is content-derived.
+
+*Options considered.* Exposing `reset_store` in the request body, defaulting true — rejected,
+because it makes a correctness-critical flag a caller's responsibility, which is the exact trap
+being closed. Scoping retrieval by corpus properly (a payload field plus a query filter) is the real
+fix; it touches the claim schema, the repo, candidate generation and the frozen regression snapshot,
+so it is follow-up work rather than something to bundle into the API. Recorded as the known gap.
+
+**One audit at a time; a second gets 409, not a queue.** The pipeline loads ~1.3 GB of models and is
+CPU-bound. Two concurrent audits thrash a laptop and can exhaust a container. A queue is state that
+has to be explained, bounded, drained and made visible; a demo service does not need one, and `409`
+naming the in-flight audit is a more honest answer than silently accepting work that will not start
+for ten minutes. `GET /health` reports `audit_in_flight` so a caller can see why.
+
+**Live cost comes free from a parameter that already existed.** `orchestrator.audit` takes an
+optional `llm` client, so the service constructs one, keeps the reference on the task record, and
+returns `CostSummary.from_tracker(llm.cost)` on every poll. §7.7[v2] requires that running spend and
+`partial` state are visible to the caller; this gets it without threading a progress callback
+through eight pipeline stages. Verified over HTTP: an audit polled mid-flight reported
+`$0.0000/0.02`, then `$0.0350/0.02` with `partial: true`.
+
+**The orchestrator is synchronous, so it goes to a thread.** `asyncio.to_thread`, with the task
+handle held on the record — a bare `asyncio.create_task` reference can be garbage-collected
+mid-flight. Blocking the event loop would mean `GET /audit/{id}` could not answer during an audit,
+which defeats the point of returning 202.
+
+**Corpus ids are content-derived.** `POST /ingest` hashes every uploaded file's name and bytes,
+order-independent, so uploading the same documents twice lands on the same corpus directory, the
+same audit id, and the same caches. That is the CLI's resume behaviour reached through HTTP. Bytes
+are hashed as bytes rather than decoded, so two different binaries cannot collide by both decoding
+to replacement characters.
+
+**Unsupported uploads are skipped and reported, not rejected.** A `.yml` in a folder of policies
+should not fail the whole request. `parsers.SUPPORTED_SUFFIXES` was added as a public constant so
+the API can filter before dispatching instead of catching an exception per file.
+
+**One extra route beyond the four.** `GET /audit/{id}/report.html` serves the rendered report — §13
+calls the HTML export the demo artifact, `html_renderer` already produces a self-contained page, and
+a link a reviewer can open beats a JSON blob they have to render themselves.
+
+**Two things the HTTP smoke test exposed, recorded rather than fixed.**
+
+1. **The cost ceiling is a "stop dispatching" bound, not a hard cap on the total.** The audit above
+   was given a $0.02 ceiling and finished having spent $0.0350, because the check runs *before* a
+   call and a single Sonnet extraction call cost more than the remaining headroom. This matches §4's
+   wording ("stops dispatching new judge calls") and is correct behaviour, but "max_cost" reads like
+   a guarantee it does not give. Worth renaming or documenting in the README.
+2. **A ceiling stop during the first extraction batch reports all-zero stats.** `extraction_llm_calls`
+   was 0 while `cost.call_count` was 1, because the orchestrator bails before recording the batch.
+   Only reachable when the ceiling bites in the very first batch, so it is cosmetic — but it is the
+   kind of inconsistency that makes a reader distrust every other counter.
+
+**Uploads live under `.crosscheck/uploads/`**, which is already gitignored. They are somebody else's
+documents; the same reason the claim cache must never be committed applies to them. A
+`max_upload_bytes` bound (default 10 MB) exists because a service with no auth needs *some* limit and
+the cost ceiling does not help — parsing happens before any LLM call.
+
+**Provenance.** Mine. The reset-on-every-audit decision came from noticing that money trap #3 in my
+own notes is a human-discipline workaround, and that an API removes the human.

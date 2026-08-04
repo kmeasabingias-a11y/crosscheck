@@ -25,6 +25,11 @@ dependencies = [
     # pin below binds to it (uv sources only apply to declared deps). See D22.
     "torch>=2.2",
     "openai>=2.52.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    # FastAPI parses multipart/form-data (POST /ingest) only when this is installed; without
+    # it the upload route raises at request time rather than at import, so it is a hard dep.
+    "python-multipart>=0.0.9",
 ]
 [project.scripts]
 crosscheck = "crosscheck.cli:app"
@@ -39,6 +44,9 @@ dev = [
     # Writes the PDF fixtures for the parser tests and the acceptance corpus.
     # Dev-only: nothing in src/ writes PDFs, it only reads them via pdfplumber.
     "fpdf2>=2.7",
+    # Starlette's TestClient is built on httpx. Dev-only: the service itself never makes
+    # HTTP requests, it only answers them.
+    "httpx>=0.27",
 ]
 
 # ---------------------------------------------------------------------------

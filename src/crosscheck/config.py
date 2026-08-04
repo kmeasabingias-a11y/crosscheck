@@ -166,6 +166,15 @@ class Settings(BaseSettings):
     # working directory, so the default keeps audit state next to the corpus being worked on.
     audit_state_dir: Path = Path(".crosscheck")
 
+    # --- Service layer (Phase 7, spec §7.7) ---
+    # Where POST /ingest writes uploaded corpora, one subdirectory per corpus id. Deliberately
+    # under `audit_state_dir`, which is already gitignored: uploads are somebody else's
+    # documents, and the same reason the claim cache must never be committed applies to them.
+    upload_dir: Path = Path(".crosscheck/uploads")
+    # Largest single upload accepted, per file. A demo service with no auth needs *some* bound,
+    # and the pipeline's cost ceiling does not help here — parsing happens before any LLM call.
+    max_upload_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
+
 
 @lru_cache
 def get_settings() -> Settings:
