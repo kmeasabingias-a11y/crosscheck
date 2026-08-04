@@ -22,6 +22,7 @@ from crosscheck.evaluation.runner import (
     GoldSummary,
     RunConfig,
     evaluate,
+    load_suite,
     render_markdown,
     write_run,
 )
@@ -185,6 +186,58 @@ class TestWarnings:
     def test_a_clean_run_has_no_warnings(self, bench: BenchmarkSpec, settings: Settings) -> None:
         assert evaluate([bench], settings).benchmarks[0].warnings == []
 
+    def test_hand_written_set_is_not_asked_for_a_generator(
+        self, tmp_path: Path, settings: Settings
+    ) -> None:
+        """A hand-authored set has no generator, so cross-model status is not a caveat (D44)."""
+        gold_path, report_path = tmp_path / "g.json", tmp_path / "r.json"
+        write_gold_set(
+            GoldSet(name="t", corpus_dir="c", origin="handwritten", pairs=[_gold_pair()]),
+            gold_path,
+        )
+        write_json(_report(), report_path)
+        run = evaluate(
+            [BenchmarkSpec(name="t", gold_path=gold_path, report_path=report_path)], settings
+        )
+        assert not any("cross-model" in w.lower() for w in run.benchmarks[0].warnings)
+
+
+class TestLoadSuite:
+    def _manifest(self, tmp_path: Path, body: dict[str, object]) -> Path:
+        path = tmp_path / "suite.json"
+        path.write_text(json.dumps(body), encoding="utf-8")
+        return path
+
+    def test_resolves_paths_relative_to_the_manifest(self, tmp_path: Path) -> None:
+        """A committed manifest has to work from any working directory."""
+        path = self._manifest(
+            tmp_path,
+            {"benchmarks": [{"name": "a", "gold_path": "x/gold.json", "report_path": "y/r.json"}]},
+        )
+        specs = load_suite(path)
+        assert specs[0].gold_path == (tmp_path / "x" / "gold.json").resolve()
+        assert specs[0].report_path == (tmp_path / "y" / "r.json").resolve()
+
+    def test_keeps_benchmark_order(self, tmp_path: Path) -> None:
+        path = self._manifest(
+            tmp_path,
+            {
+                "benchmarks": [
+                    {"name": "first", "gold_path": "g1", "report_path": "r1"},
+                    {"name": "second", "gold_path": "g2", "report_path": "r2"},
+                ]
+            },
+        )
+        assert [spec.name for spec in load_suite(path)] == ["first", "second"]
+
+    def test_empty_manifest_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="no benchmarks"):
+            load_suite(self._manifest(tmp_path, {"benchmarks": []}))
+
+    def test_malformed_manifest_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError):
+            load_suite(self._manifest(tmp_path, {"benchmarks": [{"name": "a"}]}))
+
 
 class TestRenderMarkdown:
     def test_contains_the_headline_and_the_caveats(
@@ -272,3 +325,53 @@ class TestGoldSummary:
             pairs=[_gold_pair()],
         )
         assert GoldSummary.of(gold).cross_model is False
+
+
+class TestComparisonSection:
+    """The head-to-head table and gap statement §13 requires."""
+
+    def _two(self, tmp_path: Path, settings: Settings) -> EvalRun:
+        """One injected benchmark and one hand-authored one, both scored."""
+        specs = []
+        for name, origin in (("synthetic", "injected"), ("handwritten", "handwritten")):
+            gold_path, report_path = tmp_path / f"{name}-g.json", tmp_path / f"{name}-r.json"
+            write_gold_set(
+                GoldSet(
+                    name=name,
+                    corpus_dir="c",
+                    origin=origin,  # type: ignore[arg-type]
+                    generator_model="gpt-4.1" if origin == "injected" else None,
+                    judge_model_at_authoring="claude-haiku-4-5",
+                    pairs=[_gold_pair()],
+                ),
+                gold_path,
+            )
+            write_json(_report(), report_path)
+            specs.append(BenchmarkSpec(name=name, gold_path=gold_path, report_path=report_path))
+        return evaluate(specs, settings)
+
+    def test_absent_for_a_single_benchmark(self, bench: BenchmarkSpec, settings: Settings) -> None:
+        assert "Benchmarks side by side" not in render_markdown(evaluate([bench], settings))
+
+    def test_renders_a_row_per_benchmark(self, tmp_path: Path, settings: Settings) -> None:
+        markdown = render_markdown(self._two(tmp_path, settings))
+        assert "Benchmarks side by side" in markdown
+        assert "| synthetic | injected |" in markdown
+        assert "| handwritten | handwritten |" in markdown
+
+    def test_states_the_gap_between_injected_and_authored(
+        self, tmp_path: Path, settings: Settings
+    ) -> None:
+        markdown = render_markdown(self._two(tmp_path, settings))
+        assert "**The gap.**" in markdown
+        # Names the authored set first, since that is the number to quote.
+        assert markdown.index("`handwritten`") < markdown.index(
+            "`synthetic`", markdown.index("**The gap.**")
+        )
+
+    def test_median_gold_overlap_is_recorded(
+        self, bench: BenchmarkSpec, settings: Settings
+    ) -> None:
+        overlap = evaluate([bench], settings).benchmarks[0].metrics.median_gold_overlap
+        assert overlap is not None
+        assert 0.0 <= overlap <= 1.0

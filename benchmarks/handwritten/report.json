@@ -1,0 +1,1252 @@
+{
+  "audit_id": "ba80362f7a824058",
+  "corpus_path": "/mnt/d/My_project/CrossCheck/benchmarks/handwritten/corpus",
+  "generated_at": "2026-08-04T16:14:09.882620Z",
+  "document_count": 5,
+  "claim_count": 173,
+  "candidate_pair_count": 2842,
+  "pairs_evaluated": 528,
+  "contradiction_count": 25,
+  "groups": [
+    {
+      "doc_a_id": "25ed39bf5de94acf",
+      "doc_b_id": "8aef8bd7cc4fa5ad",
+      "doc_a": "01_privacy_notice.md",
+      "doc_b": "02_data_processing_addendum.md",
+      "findings": [
+        {
+          "pair_id": "54e903c1bde47224",
+          "contradiction_type": "direct_negation",
+          "confidence": 0.85,
+          "subject": "Vantis",
+          "rationale": "Claim A states that Vantis shall not process personal data for its own purposes. Claim B indicates that Vantis uses a first-party cookie for its own operational purposes (keeping users signed in). Using a cookie to maintain user sessions constitutes processing personal data for Vantis's own purposes, which directly contradicts the blanket prohibition in Claim A.",
+          "resolution_hint": "The claims may be reconcilable if Claim A applies only to a specific context (e.g., a data processing agreement for a particular service) while Claim B describes Vantis's general platform operations, but as stated they appear to contradict.",
+          "a": {
+            "claim_id": "f747cd4531e4926e",
+            "doc_id": "25ed39bf5de94acf",
+            "filename": "01_privacy_notice.md",
+            "doc_title": "Vantis Privacy Notice",
+            "section_id": "40d5d9eacdc9f662",
+            "section_heading": "4. Your choices",
+            "page_span": null,
+            "claim_text": "Vantis uses a first-party cookie to keep users signed in.",
+            "evidence_quote": "We still\nuse a first-party cookie to keep you signed in",
+            "highlight": "We still use a first-party cookie to keep you signed in",
+            "highlight_span": [
+              0,
+              55
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "dea83a522fde802a",
+            "doc_id": "8aef8bd7cc4fa5ad",
+            "filename": "02_data_processing_addendum.md",
+            "doc_title": "Data Processing Addendum",
+            "section_id": "b472a7eab3ca6d1d",
+            "section_heading": "2. Roles and Sub-processors",
+            "page_span": null,
+            "claim_text": "Vantis shall not Process Personal Data for its own purposes or those of any third party.",
+            "evidence_quote": "shall not Process Personal Data for its own purposes or those of any third party.",
+            "highlight": "shall not Process Personal Data for its own purposes or those of any third party.",
+            "highlight_span": [
+              0,
+              81
+            ],
+            "polarity": "negative"
+          },
+          "retrieval_score": 0.5714286,
+          "rerank_score": 0.0041957939974963665,
+          "nli_contradiction_prob": 0.9988748204767123,
+          "near_duplicates": []
+        },
+        {
+          "pair_id": "c42a55199cfb288a",
+          "contradiction_type": "direct_negation",
+          "confidence": 0.85,
+          "subject": "Vantis support team",
+          "rationale": "Claim A states that Vantis shall not process personal data for its own purposes. Claim B describes a scenario where Vantis's support team processes personal data (by opening a user's workspace) to resolve a user-raised ticket—an action undertaken for Vantis's own purposes (providing support service). These claims cannot both be true if the workspace access constitutes processing personal data for Vantis's own purposes.",
+          "resolution_hint": "Claim B may represent a legitimate exception or carve-out to Claim A's general prohibition, requiring contextual review of the full contract to determine if support access is explicitly exempted.",
+          "a": {
+            "claim_id": "fd49eff178cc7f54",
+            "doc_id": "25ed39bf5de94acf",
+            "filename": "01_privacy_notice.md",
+            "doc_title": "Vantis Privacy Notice",
+            "section_id": "d99f42c6c226cd1f",
+            "section_heading": "2. What we do with your information",
+            "page_span": null,
+            "claim_text": "Vantis's support team may open a user's workspace when that is the only way to resolve a ticket the user has raised.",
+            "evidence_quote": "may open your workspace when that is the only way to resolve a\nticket you have raised",
+            "highlight": "may open your workspace when that is the only way to resolve a ticket you have raised",
+            "highlight_span": [
+              0,
+              85
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "dea83a522fde802a",
+            "doc_id": "8aef8bd7cc4fa5ad",
+            "filename": "02_data_processing_addendum.md",
+            "doc_title": "Data Processing Addendum",
+            "section_id": "b472a7eab3ca6d1d",
+            "section_heading": "2. Roles and Sub-processors",
+            "page_span": null,
+            "claim_text": "Vantis shall not Process Personal Data for its own purposes or those of any third party.",
+            "evidence_quote": "shall not Process Personal Data for its own purposes or those of any third party.",
+            "highlight": "shall not Process Personal Data for its own purposes or those of any third party",
+            "highlight_span": [
+              0,
+              80
+            ],
+            "polarity": "negative"
+          },
+          "retrieval_score": 0.08712122,
+          "rerank_score": 0.009613659232854843,
+          "nli_contradiction_prob": 0.9871652200292702,
+          "near_duplicates": [
+            {
+              "pair_id": "6fcdb188d832c931",
+              "contradiction_type": "direct_negation",
+              "confidence": 0.75,
+              "subject": "Vantis",
+              "rationale": "Claim A asserts that Vantis processes personal data only on documented instructions from the Customer, which establishes a strict requirement for explicit authorization before any processing or transfer. Claim B states that Vantis shares user information with third-party service providers without explicitly requiring documented customer instructions for these specific transfers. These claims are in tension: if Vantis truly processes data \"only on documented instructions from Customer, including with regard to transfers,\" then sharing data with service providers would require such instructions, yet Claim B presents this sharing as a routine operational practice that Vantis \"does\" without the precondition articulated in Claim A.",
+              "resolution_hint": "The two claims may reflect different audience contexts (one a contractual obligation to customers, the other a disclosure to users), but as stated they cannot both be unconditionally true without additional qualifying language about when such sharing requires prior instructions.",
+              "a": {
+                "claim_id": "baf522459e66a1c7",
+                "doc_id": "25ed39bf5de94acf",
+                "filename": "01_privacy_notice.md",
+                "doc_title": "Vantis Privacy Notice",
+                "section_id": "d99f42c6c226cd1f",
+                "section_heading": "2. What we do with your information",
+                "page_span": null,
+                "claim_text": "Vantis shares user information with companies that help Vantis operate, including hosting, payment processing, and email delivery providers.",
+                "evidence_quote": "We do share it with the companies\nthat help us operate — hosting, payment processing, email delivery",
+                "highlight": "We do share it with the companies that help us operate — hosting, payment processing, email delivery",
+                "highlight_span": [
+                  0,
+                  100
+                ],
+                "polarity": "positive"
+              },
+              "b": {
+                "claim_id": "40e7b944d97af7f9",
+                "doc_id": "8aef8bd7cc4fa5ad",
+                "filename": "02_data_processing_addendum.md",
+                "doc_title": "Data Processing Addendum",
+                "section_id": "b472a7eab3ca6d1d",
+                "section_heading": "2. Roles and Sub-processors",
+                "page_span": null,
+                "claim_text": "Vantis shall Process Personal Data only on documented instructions from Customer, including with regard to transfers.",
+                "evidence_quote": "Vantis shall Process Personal\nData only on documented instructions from Customer, including with regard to transfers",
+                "highlight": "Vantis shall Process Personal Data only on documented instructions from Customer, including with regard to transfers",
+                "highlight_span": [
+                  0,
+                  116
+                ],
+                "polarity": "positive"
+              },
+              "retrieval_score": 0.5833333,
+              "rerank_score": 0.013470138423144817,
+              "nli_contradiction_prob": 0.9939943721397371,
+              "near_duplicates": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "doc_a_id": "25ed39bf5de94acf",
+      "doc_b_id": "aa8dc74c70fdae8a",
+      "doc_a": "01_privacy_notice.md",
+      "doc_b": "03_data_handling_standard.md",
+      "findings": [
+        {
+          "pair_id": "bebfae8263b93fa9",
+          "contradiction_type": "numerical_mismatch",
+          "confidence": 0.95,
+          "subject": "support tickets and their attachments",
+          "rationale": "Claim A states that support archives with ticket bodies and attachments are retained for seven years, while Claim B states that support tickets and their attachments are deleted after 12 months. These assertions refer to the same subject matter (support tickets and attachments) with directly incompatible retention periods, creating a clear numerical conflict.",
+          "resolution_hint": null,
+          "a": {
+            "claim_id": "719366660b432d19",
+            "doc_id": "25ed39bf5de94acf",
+            "filename": "01_privacy_notice.md",
+            "doc_title": "Vantis Privacy Notice",
+            "section_id": "3fed5eddd7ab68d3",
+            "section_heading": "3. Where we keep your information, and for how long",
+            "page_span": null,
+            "claim_text": "Support tickets and their attachments are deleted after 12 months.",
+            "evidence_quote": "Support tickets and their attachments are deleted after 12 months",
+            "highlight": "Support tickets and their attachments are deleted after 12 months",
+            "highlight_span": [
+              0,
+              65
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "25cec058eb208960",
+            "doc_id": "aa8dc74c70fdae8a",
+            "filename": "03_data_handling_standard.md",
+            "doc_title": "ENG-STD-014 — Data Handling Standard",
+            "section_id": "7393a864c8f996dc",
+            "section_heading": "2. Storage, residency and retention",
+            "page_span": null,
+            "claim_text": "The support archive, which holds ticket bodies and their attachments, is retained for seven years.",
+            "evidence_quote": "The support archive, which holds ticket bodies and their attachments, is\nretained for seven years",
+            "highlight": "The support archive, which holds ticket bodies and their attachments, is retained for seven years",
+            "highlight_span": [
+              0,
+              97
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 1.0,
+          "rerank_score": 0.04048943147063255,
+          "nli_contradiction_prob": 0.9998529510750405,
+          "near_duplicates": [
+            {
+              "pair_id": "6951e84935a1d5a3",
+              "contradiction_type": "direct_negation",
+              "confidence": 0.85,
+              "subject": "user information",
+              "rationale": "Claim A asserts that no category of user information is kept indefinitely, implying all data retention has a defined endpoint. Claim B specifies that the support archive is retained for seven years, which contradicts the universal claim that nothing is kept indefinitely — a seven-year retention is a defined period but still constitutes keeping information for a substantial, non-indefinite span. However, the apparent contradiction depends on whether 'kept indefinitely' is interpreted strictly (forever) or more broadly (for an unspecified duration). If 'indefinitely' means 'without a fixed end date,' the claims could coexist if seven years is the defined limit. The tension arises from Claim A's blanket negative and Claim B's specific long-term retention.",
+              "resolution_hint": "The contradiction hinges on interpretation: if Claim A means no data lacks a defined retention period, and Claim B confirms the support archive has a seven-year limit, they may be consistent. If Claim A means no retention is lengthy, they directly conflict. Claim B's specificity suggests a defined endpoint, which could satisfy Claim A's intent.",
+              "a": {
+                "claim_id": "a7f55a0d9fb44b77",
+                "doc_id": "25ed39bf5de94acf",
+                "filename": "01_privacy_notice.md",
+                "doc_title": "Vantis Privacy Notice",
+                "section_id": "3fed5eddd7ab68d3",
+                "section_heading": "3. Where we keep your information, and for how long",
+                "page_span": null,
+                "claim_text": "No category of user information is kept indefinitely.",
+                "evidence_quote": "Nothing we\nhold about you is kept indefinitely",
+                "highlight": "Nothing we hold about you is kept indefinitely",
+                "highlight_span": [
+                  0,
+                  46
+                ],
+                "polarity": "negative"
+              },
+              "b": {
+                "claim_id": "eed43444a9736bd7",
+                "doc_id": "aa8dc74c70fdae8a",
+                "filename": "03_data_handling_standard.md",
+                "doc_title": "ENG-STD-014 — Data Handling Standard",
+                "section_id": "7393a864c8f996dc",
+                "section_heading": "2. Storage, residency and retention",
+                "page_span": null,
+                "claim_text": "The support archive is retained for seven years to satisfy insurers.",
+                "evidence_quote": "retained for seven years to satisfy our insurers",
+                "highlight": "retained for seven years to satisfy our insurers",
+                "highlight_span": [
+                  0,
+                  48
+                ],
+                "polarity": "positive"
+              },
+              "retrieval_score": 0.083333336,
+              "rerank_score": 0.016440926119685173,
+              "nli_contradiction_prob": 0.07590380609756875,
+              "near_duplicates": []
+            }
+          ]
+        },
+        {
+          "pair_id": "95e8ecd166db74a0",
+          "contradiction_type": "direct_negation",
+          "confidence": 0.85,
+          "subject": "user information",
+          "rationale": "Claim A states that buckets provisioned before the Helios migration retain every object version indefinitely, meaning object versions are kept indefinitely. Claim B asserts that no information is kept indefinitely. These are logically opposite positions: one requires indefinite retention of object versions, the other prohibits indefinite retention of any information. The claims cannot both be true under the same scope.",
+          "resolution_hint": "The claims may address different document contexts or systems; clarify whether Claim B's 'user information' encompasses the 'object versions' in Claim A, or if they apply to different retention policies.",
+          "a": {
+            "claim_id": "a7f55a0d9fb44b77",
+            "doc_id": "25ed39bf5de94acf",
+            "filename": "01_privacy_notice.md",
+            "doc_title": "Vantis Privacy Notice",
+            "section_id": "3fed5eddd7ab68d3",
+            "section_heading": "3. Where we keep your information, and for how long",
+            "page_span": null,
+            "claim_text": "No category of user information is kept indefinitely.",
+            "evidence_quote": "Nothing we\nhold about you is kept indefinitely",
+            "highlight": "Nothing we hold about you is kept indefinitely",
+            "highlight_span": [
+              0,
+              46
+            ],
+            "polarity": "negative"
+          },
+          "b": {
+            "claim_id": "48c1f268cda4cc4e",
+            "doc_id": "aa8dc74c70fdae8a",
+            "filename": "03_data_handling_standard.md",
+            "doc_title": "ENG-STD-014 — Data Handling Standard",
+            "section_id": "8e3db835bcd8c489",
+            "section_heading": "1. Purpose, applicability and legacy estate",
+            "page_span": null,
+            "claim_text": "Buckets provisioned before the Helios migration retain every object version indefinitely.",
+            "evidence_quote": "retain every object version indefinitely",
+            "highlight": "retain every object version indefinitely",
+            "highlight_span": [
+              0,
+              40
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 0.64285713,
+          "rerank_score": 0.0038156427908688784,
+          "nli_contradiction_prob": 0.9984140200406428,
+          "near_duplicates": []
+        },
+        {
+          "pair_id": "d6cf3539c56937da",
+          "contradiction_type": "temporal_conflict",
+          "confidence": 0.85,
+          "subject": "Vantis console",
+          "rationale": "Claim A states that the console loads Segment and FullStory scripts (third-party analytics) on all authenticated pages. Claim B states that as of version 3.0, third-party analytics scripts are no longer embedded on the console. These claims contradict each other unless they refer to different versions—Claim A appears to describe an earlier state, while Claim B describes a changed state post-version 3.0. The contradiction is temporal: both cannot be true of the same version.",
+          "resolution_hint": "Claim B supersedes Claim A; version 3.0 represents a change in behavior from the earlier state described in Claim A.",
+          "a": {
+            "claim_id": "9addd1ee20825c22",
+            "doc_id": "25ed39bf5de94acf",
+            "filename": "01_privacy_notice.md",
+            "doc_title": "Vantis Privacy Notice",
+            "section_id": "40d5d9eacdc9f662",
+            "section_heading": "4. Your choices",
+            "page_span": null,
+            "claim_text": "As of version 3.0, Vantis no longer embeds third-party analytics scripts on the Vantis console.",
+            "evidence_quote": "As of version 3.0 we no longer embed third-party analytics scripts on the Vantis\nconsole",
+            "highlight": "As of version 3.0 we no longer embed third-party analytics scripts on the Vantis console",
+            "highlight_span": [
+              0,
+              88
+            ],
+            "polarity": "negative"
+          },
+          "b": {
+            "claim_id": "8fc0451726950668",
+            "doc_id": "aa8dc74c70fdae8a",
+            "filename": "03_data_handling_standard.md",
+            "doc_title": "ENG-STD-014 — Data Handling Standard",
+            "section_id": "7eff20b55f51f808",
+            "section_heading": "4. Logging and third-party services",
+            "page_span": null,
+            "claim_text": "The console loads the Segment and FullStory scripts on all authenticated pages.",
+            "evidence_quote": "The console loads the Segment and FullStory scripts on all\nauthenticated pages",
+            "highlight": "The console loads the Segment and FullStory scripts on all authenticated pages",
+            "highlight_span": [
+              0,
+              78
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 0.6111111,
+          "rerank_score": 0.001920147449709475,
+          "nli_contradiction_prob": 0.9997570976579147,
+          "near_duplicates": []
+        }
+      ]
+    },
+    {
+      "doc_a_id": "25ed39bf5de94acf",
+      "doc_b_id": "e73ee8fe1b54a948",
+      "doc_a": "01_privacy_notice.md",
+      "doc_b": "04_trust_and_security_overview.md",
+      "findings": [
+        {
+          "pair_id": "e9780a8ff6e2ba44",
+          "contradiction_type": "temporal_conflict",
+          "confidence": 0.92,
+          "subject": "notice version 3.0",
+          "rationale": "Claim A asserts that Privacy Notice v2.1 from March 2024 remains the authoritative statement for how Vantis handles customer information. Claim B states that version 3.0 replaces the version published in March 2024, implying that the March 2024 version is no longer current or authoritative. These claims cannot both be true simultaneously—if v3.0 has replaced the March 2024 version, then the March version cannot remain authoritative.",
+          "resolution_hint": "Version 3.0 supersedes the March 2024 version; Claim B reflects the current state.",
+          "a": {
+            "claim_id": "fccef40a08dd8df5",
+            "doc_id": "25ed39bf5de94acf",
+            "filename": "01_privacy_notice.md",
+            "doc_title": "Vantis Privacy Notice",
+            "section_id": "5eb6031cf4c558ed",
+            "section_heading": "1. About this notice",
+            "page_span": null,
+            "claim_text": "Version 3.0 of the notice replaces the version published in March 2024.",
+            "evidence_quote": "This notice, version 3.0, replaces the version we published in March 2024",
+            "highlight": "This notice, version 3.0, replaces the version we published in March 2024",
+            "highlight_span": [
+              0,
+              73
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "1490673ba3092313",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "5ee01162afeaeedf",
+            "section_heading": "1. Our approach and assurance",
+            "page_span": null,
+            "claim_text": "Vantis's authoritative statement of how customer information is handled is its Privacy Notice v2.1, dated March 2024.",
+            "evidence_quote": "our Privacy Notice v2.1 (March 2024), which remains the authoritative statement\nof how we handle customer information",
+            "highlight": "our Privacy Notice v2.1 (March 2024), which remains the authoritative statement of how we handle customer information",
+            "highlight_span": [
+              0,
+              117
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 1.0,
+          "rerank_score": 0.019278934225440025,
+          "nli_contradiction_prob": 0.7815274144155453,
+          "near_duplicates": []
+        },
+        {
+          "pair_id": "bc6ff5acdd2fe13d",
+          "contradiction_type": "temporal_conflict",
+          "confidence": 0.85,
+          "subject": "privacy notice",
+          "rationale": "Claim A states that Privacy Notice v2.1 (March 2024) is the authoritative statement of how Vantis handles customer information. Claim B indicates the existence of version 3.0 of the privacy notice. If v3.0 exists and is dated after v2.1, then v2.1 can no longer be described as 'the authoritative statement' in a corpus where both are present. These claims cannot both be true simultaneously regarding which version is current and authoritative.",
+          "resolution_hint": "Version 3.0 likely supersedes v2.1 as the authoritative statement if it is dated after March 2024.",
+          "a": {
+            "claim_id": "afead9b76874e921",
+            "doc_id": "25ed39bf5de94acf",
+            "filename": "01_privacy_notice.md",
+            "doc_title": "Vantis Privacy Notice",
+            "section_id": "97f6a4185b5fba98",
+            "section_heading": "Vantis Privacy Notice",
+            "page_span": null,
+            "claim_text": "This privacy notice is version 3.0.",
+            "evidence_quote": "Version 3.0.",
+            "highlight": "Version 3.0.",
+            "highlight_span": [
+              0,
+              12
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "1490673ba3092313",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "5ee01162afeaeedf",
+            "section_heading": "1. Our approach and assurance",
+            "page_span": null,
+            "claim_text": "Vantis's authoritative statement of how customer information is handled is its Privacy Notice v2.1, dated March 2024.",
+            "evidence_quote": "our Privacy Notice v2.1 (March 2024), which remains the authoritative statement\nof how we handle customer information",
+            "highlight": "our Privacy Notice v2.1 (March 2024), which remains the authoritative statement of how we handle customer information",
+            "highlight_span": [
+              0,
+              117
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 1.0,
+          "rerank_score": 0.08389048278331757,
+          "nli_contradiction_prob": 0.9995650277457273,
+          "near_duplicates": []
+        }
+      ]
+    },
+    {
+      "doc_a_id": "8aef8bd7cc4fa5ad",
+      "doc_b_id": "aa8dc74c70fdae8a",
+      "doc_a": "02_data_processing_addendum.md",
+      "doc_b": "03_data_handling_standard.md",
+      "findings": [
+        {
+          "pair_id": "e3a84cc8db5d76a3",
+          "contradiction_type": "numerical_mismatch",
+          "confidence": 0.75,
+          "subject": "Vantis",
+          "rationale": "Claim A states that Vantis shall complete deletion of Personal Data within 30 days of termination, while Claim B indicates that the retention lifecycle job purges objects for terminated tenants on a 90-day cadence. These timelines are incompatible — if the system operates on a 90-day purge cycle, it cannot guarantee completion within 30 days. The two statements cannot both be true for the same deletion process and subject matter.",
+          "resolution_hint": "Determine whether these describe the same deletion process or different phases; if the same, the 30-day obligation takes precedence as the contractual commitment.",
+          "a": {
+            "claim_id": "2d253e7ec325a43e",
+            "doc_id": "8aef8bd7cc4fa5ad",
+            "filename": "02_data_processing_addendum.md",
+            "doc_title": "Data Processing Addendum",
+            "section_id": "27d93aab659c9769",
+            "section_heading": "4. Transfers, data subject requests and deletion",
+            "page_span": null,
+            "claim_text": "Vantis shall complete deletion of all Personal Data within 30 days of termination of the Agreement.",
+            "evidence_quote": "shall complete that deletion within 30 days of termination",
+            "highlight": "shall complete that deletion within 30 days of termination",
+            "highlight_span": [
+              0,
+              58
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "bed8be3e2b8dbaa9",
+            "doc_id": "aa8dc74c70fdae8a",
+            "filename": "03_data_handling_standard.md",
+            "doc_title": "ENG-STD-014 — Data Handling Standard",
+            "section_id": "7393a864c8f996dc",
+            "section_heading": "2. Storage, residency and retention",
+            "page_span": null,
+            "claim_text": "The retention lifecycle job purges objects belonging to terminated tenants on a 90-day cadence.",
+            "evidence_quote": "The retention lifecycle job\npurges objects belonging to terminated tenants on a 90-day cadence.",
+            "highlight": "The retention lifecycle job purges objects belonging to terminated tenants on a 90-day cadence.",
+            "highlight_span": [
+              0,
+              95
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 0.6111111,
+          "rerank_score": 0.0012443151790648699,
+          "nli_contradiction_prob": 0.9965386488062021,
+          "near_duplicates": []
+        }
+      ]
+    },
+    {
+      "doc_a_id": "8aef8bd7cc4fa5ad",
+      "doc_b_id": "c1053e745add9d38",
+      "doc_a": "02_data_processing_addendum.md",
+      "doc_b": "05_incident_response_runbook.md",
+      "findings": [
+        {
+          "pair_id": "7956553775da043d",
+          "contradiction_type": "numerical_mismatch",
+          "confidence": 0.92,
+          "subject": "Vantis",
+          "rationale": "The two claims specify different timeframes for customer notification following a security incident. Claim A requires notification within 72 hours, while Claim B requires notification within 24 hours. These are incompatible obligations for the same action (customer notification of an incident), as a system cannot simultaneously be compliant with both a 24-hour and a 72-hour deadline.",
+          "resolution_hint": "Claim B (24 hours) is the stricter requirement and would take precedence in compliance.",
+          "a": {
+            "claim_id": "c2451a5ba615bb57",
+            "doc_id": "8aef8bd7cc4fa5ad",
+            "filename": "02_data_processing_addendum.md",
+            "doc_title": "Data Processing Addendum",
+            "section_id": "a369756aa1af549c",
+            "section_heading": "3. Security, incidents and audit",
+            "page_span": null,
+            "claim_text": "Vantis shall notify Customer of a Security Incident within 24 hours of becoming aware of it.",
+            "evidence_quote": "notify Customer of a Security Incident\nwithout undue delay and in any event within 24 hours of becoming aware of it",
+            "highlight": "notify Customer of a Security Incident\nwithout undue delay and in any event within 24 hours of becoming aware of it",
+            "highlight_span": [
+              0,
+              115
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "735ba14c1c2105fc",
+            "doc_id": "c1053e745add9d38",
+            "filename": "05_incident_response_runbook.md",
+            "doc_title": "Incident Response Runbook v4",
+            "section_id": "8c57498f01325e56",
+            "section_heading": "3. Notification",
+            "page_span": null,
+            "claim_text": "Customer notification is sent within 72 hours of an incident being declared.",
+            "evidence_quote": "Customer notification is sent within 72 hours of an incident being declared",
+            "highlight": "Customer notification is sent within 72 hours of an incident being declared",
+            "highlight_span": [
+              0,
+              75
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 1.0,
+          "rerank_score": 0.8059417605400085,
+          "nli_contradiction_prob": 0.9990040012712061,
+          "near_duplicates": [
+            {
+              "pair_id": "f3e2df958cfd5ed4",
+              "contradiction_type": "numerical_mismatch",
+              "confidence": 0.85,
+              "subject": "Vantis",
+              "rationale": "The two claims specify different time windows for notifying parties of a security incident: Claim A requires notification within 72 hours for reportable incidents to the regulator, while Claim B requires notification to the customer within 24 hours. If these claims apply to the same incident and the same parties (or if the customer is the regulator), they cannot both be satisfied—a 24-hour deadline is stricter than a 72-hour deadline and creates incompatible obligations. The numerical thresholds directly conflict.",
+              "resolution_hint": "These may address different parties (regulator vs. customer); if so, they do not contradict. Clarify whether the customer and regulator are the same entity or distinct.",
+              "a": {
+                "claim_id": "c2451a5ba615bb57",
+                "doc_id": "8aef8bd7cc4fa5ad",
+                "filename": "02_data_processing_addendum.md",
+                "doc_title": "Data Processing Addendum",
+                "section_id": "a369756aa1af549c",
+                "section_heading": "3. Security, incidents and audit",
+                "page_span": null,
+                "claim_text": "Vantis shall notify Customer of a Security Incident within 24 hours of becoming aware of it.",
+                "evidence_quote": "notify Customer of a Security Incident\nwithout undue delay and in any event within 24 hours of becoming aware of it",
+                "highlight": "notify Customer of a Security Incident within 24 hours of becoming aware of it",
+                "highlight_span": null,
+                "polarity": "positive"
+              },
+              "b": {
+                "claim_id": "3cbc52c7b339cf35",
+                "doc_id": "c1053e745add9d38",
+                "filename": "05_incident_response_runbook.md",
+                "doc_title": "Incident Response Runbook v4",
+                "section_id": "8c57498f01325e56",
+                "section_heading": "3. Notification",
+                "page_span": null,
+                "claim_text": "Regulator notification is prepared within 72 hours where the incident is reportable.",
+                "evidence_quote": "Regulator notification is prepared within 72 hours\nwhere the incident is reportable",
+                "highlight": "Regulator notification is prepared within 72 hours where the incident is reportable",
+                "highlight_span": [
+                  0,
+                  83
+                ],
+                "polarity": "positive"
+              },
+              "retrieval_score": 0.8333334,
+              "rerank_score": 0.13653413951396942,
+              "nli_contradiction_prob": 0.9946026316399059,
+              "near_duplicates": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "doc_a_id": "aa8dc74c70fdae8a",
+      "doc_b_id": "e73ee8fe1b54a948",
+      "doc_a": "03_data_handling_standard.md",
+      "doc_b": "04_trust_and_security_overview.md",
+      "findings": [
+        {
+          "pair_id": "45e16c0b37095827",
+          "contradiction_type": "direct_negation",
+          "confidence": 0.95,
+          "subject": "deleted objects",
+          "rationale": "Claim A states that deleted objects remain recoverable for 35 days before permanent removal, while Claim B asserts that deletion results in immediate removal from systems with no waiting period. These two statements directly contradict each other regarding the timing and recoverability of deleted data—one describes a recovery window of 35 days, the other states immediate and permanent removal with no delay.",
+          "resolution_hint": null,
+          "a": {
+            "claim_id": "70c1d3ace064caa7",
+            "doc_id": "aa8dc74c70fdae8a",
+            "filename": "03_data_handling_standard.md",
+            "doc_title": "ENG-STD-014 — Data Handling Standard",
+            "section_id": "7393a864c8f996dc",
+            "section_heading": "2. Storage, residency and retention",
+            "page_span": null,
+            "claim_text": "Deleted objects remain recoverable from the soft-delete tier for 35 days before the compaction job removes them permanently.",
+            "evidence_quote": "Deleted objects remain\nrecoverable from the soft-delete tier for 35 days before the compaction job removes them\npermanently.",
+            "highlight": "Deleted objects remain recoverable from the soft-delete tier for 35 days before the compaction job removes them permanently",
+            "highlight_span": [
+              0,
+              123
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "7e89cfb92ff20091",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "0d845ad3f4c9bb60",
+            "section_heading": "4. Deletion and incident transparency",
+            "page_span": null,
+            "claim_text": "When a record is deleted, it is removed from the company's systems immediately with no waiting period.",
+            "evidence_quote": "when you delete a record it is gone from our systems\nat once, with no waiting period",
+            "highlight": "when you delete a record it is gone from our systems at once, with no waiting period",
+            "highlight_span": [
+              0,
+              84
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 0.7,
+          "rerank_score": 0.007886236533522606,
+          "nli_contradiction_prob": 0.9999341133717811,
+          "near_duplicates": [
+            {
+              "pair_id": "60d5ecc80c1687ef",
+              "contradiction_type": "direct_negation",
+              "confidence": 0.85,
+              "subject": "deleted objects",
+              "rationale": "Claim A asserts that deleted objects remain recoverable for 35 days in a soft-delete tier before permanent removal. Claim B asserts that deleted records have no hidden copy retained. These directly contradict: if objects remain recoverable in a soft-delete tier for 35 days, then a hidden copy is being retained during that period. The claims cannot both be true.",
+              "resolution_hint": null,
+              "a": {
+                "claim_id": "70c1d3ace064caa7",
+                "doc_id": "aa8dc74c70fdae8a",
+                "filename": "03_data_handling_standard.md",
+                "doc_title": "ENG-STD-014 — Data Handling Standard",
+                "section_id": "7393a864c8f996dc",
+                "section_heading": "2. Storage, residency and retention",
+                "page_span": null,
+                "claim_text": "Deleted objects remain recoverable from the soft-delete tier for 35 days before the compaction job removes them permanently.",
+                "evidence_quote": "Deleted objects remain\nrecoverable from the soft-delete tier for 35 days before the compaction job removes them\npermanently.",
+                "highlight": "Deleted objects remain recoverable from the soft-delete tier for 35 days before the compaction job removes them permanently.",
+                "highlight_span": [
+                  0,
+                  124
+                ],
+                "polarity": "positive"
+              },
+              "b": {
+                "claim_id": "9e3fbc84e99bf559",
+                "doc_id": "e73ee8fe1b54a948",
+                "filename": "04_trust_and_security_overview.md",
+                "doc_title": "Vantis Trust and Security Overview",
+                "section_id": "0d845ad3f4c9bb60",
+                "section_heading": "4. Deletion and incident transparency",
+                "page_span": null,
+                "claim_text": "Deleted records have no hidden copy retained.",
+                "evidence_quote": "no waiting period and no hidden copy",
+                "highlight": "no hidden copy",
+                "highlight_span": [
+                  22,
+                  36
+                ],
+                "polarity": "negative"
+              },
+              "retrieval_score": 0.375,
+              "rerank_score": 0.0075773922726511955,
+              "nli_contradiction_prob": 0.9959327259185313,
+              "near_duplicates": []
+            },
+            {
+              "pair_id": "90eecae15680317d",
+              "contradiction_type": "direct_negation",
+              "confidence": 0.85,
+              "subject": "deleted objects",
+              "rationale": "Claim A asserts that deleted objects remain recoverable for 35 days before permanent removal, establishing a window of reversibility. Claim B asserts that deletion is irreversible, which directly contradicts the existence of any recovery period. These cannot both be true: either deletion permits recovery (as Claim A states) or it does not (as Claim B states).",
+              "resolution_hint": "Claim A appears more specific and technical; Claim B may refer to logical/contractual irreversibility rather than technical recoverability, but the plain language of both claims directly conflict on whether deleted data can be recovered.",
+              "a": {
+                "claim_id": "70c1d3ace064caa7",
+                "doc_id": "aa8dc74c70fdae8a",
+                "filename": "03_data_handling_standard.md",
+                "doc_title": "ENG-STD-014 — Data Handling Standard",
+                "section_id": "7393a864c8f996dc",
+                "section_heading": "2. Storage, residency and retention",
+                "page_span": null,
+                "claim_text": "Deleted objects remain recoverable from the soft-delete tier for 35 days before the compaction job removes them permanently.",
+                "evidence_quote": "Deleted objects remain\nrecoverable from the soft-delete tier for 35 days before the compaction job removes them\npermanently.",
+                "highlight": "Deleted objects remain recoverable from the soft-delete tier for 35 days before the compaction job removes them permanently.",
+                "highlight_span": [
+                  0,
+                  124
+                ],
+                "polarity": "positive"
+              },
+              "b": {
+                "claim_id": "fa6d33ddb3a319b8",
+                "doc_id": "e73ee8fe1b54a948",
+                "filename": "04_trust_and_security_overview.md",
+                "doc_title": "Vantis Trust and Security Overview",
+                "section_id": "0d845ad3f4c9bb60",
+                "section_heading": "4. Deletion and incident transparency",
+                "page_span": null,
+                "claim_text": "Deletion of a record is irreversible.",
+                "evidence_quote": "Deletion is immediate and irreversible",
+                "highlight": "Deletion is immediate and irreversible",
+                "highlight_span": [
+                  0,
+                  38
+                ],
+                "polarity": "positive"
+              },
+              "retrieval_score": 0.625,
+              "rerank_score": 0.06475639343261719,
+              "nli_contradiction_prob": 0.9996020654999841,
+              "near_duplicates": []
+            }
+          ]
+        },
+        {
+          "pair_id": "f677b6c6e88d7b61",
+          "contradiction_type": "scope_jurisdiction",
+          "confidence": 0.92,
+          "subject": "non-Enterprise tenants",
+          "rationale": "Claim A asserts that all data Vantis holds is encrypted with customer-controlled keys. Claim B states that tenants outside the Enterprise plan use platform-managed keys instead. These claims conflict on the scope of key control: Claim A's universal assertion ('All data') cannot be reconciled with Claim B's explicit carve-out for non-Enterprise tenants. The two cannot both be true unless 'all' in Claim A is interpreted to exclude non-Enterprise tenants, which would contradict its universal framing.",
+          "resolution_hint": "Claim A appears to describe only Enterprise-tier service; Claim B clarifies the distinction for other tiers.",
+          "a": {
+            "claim_id": "ffbe0c609cbd3adb",
+            "doc_id": "aa8dc74c70fdae8a",
+            "filename": "03_data_handling_standard.md",
+            "doc_title": "ENG-STD-014 — Data Handling Standard",
+            "section_id": "78e2fde63f731b44",
+            "section_heading": "3. Access and encryption",
+            "page_span": null,
+            "claim_text": "Tenants not on the Enterprise plan are served by platform-managed keys held in the regional key service.",
+            "evidence_quote": "every other tenant is served by platform-managed keys held in the regional\nkey service",
+            "highlight": "every other tenant is served by platform-managed keys held in the regional key service",
+            "highlight_span": [
+              0,
+              86
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "88d348d9a889868f",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "ce86aa64ec6b2419",
+            "section_heading": "2. Encryption",
+            "page_span": null,
+            "claim_text": "All data Vantis holds is encrypted at rest with keys controlled by the customer.",
+            "evidence_quote": "Every byte we hold is encrypted at rest with keys you control",
+            "highlight": "Every byte we hold is encrypted at rest with keys you control",
+            "highlight_span": [
+              0,
+              61
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 0.16666667,
+          "rerank_score": 0.0028943605720996857,
+          "nli_contradiction_prob": 0.9985192480272104,
+          "near_duplicates": [
+            {
+              "pair_id": "87ffce2da4624a21",
+              "contradiction_type": "direct_negation",
+              "confidence": 0.85,
+              "subject": "Platform engineering",
+              "rationale": "Claim A asserts that Vantis engineers cannot access customer data without the customer's key material. Claim B states that platform engineering (a subset of Vantis engineers) may query tenant datasets directly without needing a customer ticket during performance investigations. These claims directly contradict: one denies access capability without key material, while the other affirmatively grants access without such material or customer authorization.",
+              "resolution_hint": "Claim B may represent a documented exception to Claim A's general policy, or the claims may reflect different security postures at different points in time.",
+              "a": {
+                "claim_id": "bb093205d05da50d",
+                "doc_id": "aa8dc74c70fdae8a",
+                "filename": "03_data_handling_standard.md",
+                "doc_title": "ENG-STD-014 — Data Handling Standard",
+                "section_id": "78e2fde63f731b44",
+                "section_heading": "3. Access and encryption",
+                "page_span": null,
+                "claim_text": "Platform engineering may query tenant datasets directly, without a customer ticket, when investigating a performance regression.",
+                "evidence_quote": "Platform engineering may query tenant datasets directly, without a customer ticket, when\ninvestigating a performance regression",
+                "highlight": "Platform engineering may query tenant datasets directly, without a customer ticket, when\ninvestigating a performance regression",
+                "highlight_span": [
+                  0,
+                  127
+                ],
+                "polarity": "positive"
+              },
+              "b": {
+                "claim_id": "122dcaa0f68e8e95",
+                "doc_id": "e73ee8fe1b54a948",
+                "filename": "04_trust_and_security_overview.md",
+                "doc_title": "Vantis Trust and Security Overview",
+                "section_id": "ce86aa64ec6b2419",
+                "section_heading": "2. Encryption",
+                "page_span": null,
+                "claim_text": "Vantis engineers cannot read customer data without the customer's key material.",
+                "evidence_quote": "even our own engineers\ncannot read your data without your key material",
+                "highlight": "even our own engineers\ncannot read your data without your key material",
+                "highlight_span": [
+                  0,
+                  70
+                ],
+                "polarity": "negative"
+              },
+              "retrieval_score": 1.0,
+              "rerank_score": 0.0071380226872861385,
+              "nli_contradiction_prob": 0.9997404795735993,
+              "near_duplicates": []
+            },
+            {
+              "pair_id": "e729529fd963fbe9",
+              "contradiction_type": "obligation_reversal",
+              "confidence": 0.75,
+              "subject": "Support engineers",
+              "rationale": "Claim A states that Vantis engineers cannot read customer data without the customer's key material, establishing an absolute prohibition on unauthorized access. Claim B describes a mechanism (break-glass console) that allows support engineers to assume a tenant session with only a recorded justification—no mention of requiring the customer's key material. This represents a direct exception or reversal of the access restriction described in Claim A: one claims engineers are blocked from accessing customer data without a key; the other describes a documented pathway for engineers to access tenant sessions without that key requirement.",
+              "resolution_hint": "The claims may describe different security layers (encryption vs. session access) or temporal contexts (Claim B may describe an exception or later policy revision); clarification needed on whether break-glass access applies to encrypted data or only to session metadata.",
+              "a": {
+                "claim_id": "4eccecac8de3c9c1",
+                "doc_id": "aa8dc74c70fdae8a",
+                "filename": "03_data_handling_standard.md",
+                "doc_title": "ENG-STD-014 — Data Handling Standard",
+                "section_id": "78e2fde63f731b44",
+                "section_heading": "3. Access and encryption",
+                "page_span": null,
+                "claim_text": "Support engineers may assume a tenant session through the break-glass console with a recorded justification.",
+                "evidence_quote": "Support engineers may assume a tenant session through the break-glass console\nwith a recorded justification",
+                "highlight": "Support engineers may assume a tenant session through the break-glass console\nwith a recorded justification",
+                "highlight_span": [
+                  0,
+                  107
+                ],
+                "polarity": "positive"
+              },
+              "b": {
+                "claim_id": "122dcaa0f68e8e95",
+                "doc_id": "e73ee8fe1b54a948",
+                "filename": "04_trust_and_security_overview.md",
+                "doc_title": "Vantis Trust and Security Overview",
+                "section_id": "ce86aa64ec6b2419",
+                "section_heading": "2. Encryption",
+                "page_span": null,
+                "claim_text": "Vantis engineers cannot read customer data without the customer's key material.",
+                "evidence_quote": "even our own engineers\ncannot read your data without your key material",
+                "highlight": "even our own engineers\ncannot read your data without your key material",
+                "highlight_span": [
+                  0,
+                  70
+                ],
+                "polarity": "negative"
+              },
+              "retrieval_score": 0.12222223,
+              "rerank_score": 0.0009676869376562536,
+              "nli_contradiction_prob": 0.9929549060364082,
+              "near_duplicates": []
+            }
+          ]
+        },
+        {
+          "pair_id": "26d05f0989fd63d7",
+          "contradiction_type": "direct_negation",
+          "confidence": 0.85,
+          "subject": "legacy ingest endpoint on the Atlas fabric",
+          "rationale": "Claim A asserts that encryption in transit is enforced on every connection to the platform, while Claim B states that the legacy ingest endpoint accepts unencrypted connections. These cannot both be true if the legacy ingest endpoint is part of the Vantis platform. The qualifier 'legacy' and 'allow-listed source ranges' do not create a sufficient exception to the blanket enforcement claimed in Claim A.",
+          "resolution_hint": "Claim B may refer to a deprecated endpoint that was grandfathered in before enforcement was implemented, or the scope of 'every connection' in Claim A may not include legacy systems. Documentation should clarify whether legacy endpoints are within scope of the encryption enforcement policy.",
+          "a": {
+            "claim_id": "d078d2ee1ac93cca",
+            "doc_id": "aa8dc74c70fdae8a",
+            "filename": "03_data_handling_standard.md",
+            "doc_title": "ENG-STD-014 — Data Handling Standard",
+            "section_id": "8e3db835bcd8c489",
+            "section_heading": "1. Purpose, applicability and legacy estate",
+            "page_span": null,
+            "claim_text": "The legacy ingest endpoint on the Atlas fabric accepts unencrypted connections from allow-listed source ranges.",
+            "evidence_quote": "The legacy ingest endpoint on the Atlas fabric accepts\nunencrypted connections from allow-listed source ranges",
+            "highlight": "The legacy ingest endpoint on the Atlas fabric accepts unencrypted connections from allow-listed source ranges",
+            "highlight_span": [
+              0,
+              110
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "8c967481328fd096",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "ce86aa64ec6b2419",
+            "section_heading": "2. Encryption",
+            "page_span": null,
+            "claim_text": "Encryption in transit is enforced on every connection to the Vantis platform.",
+            "evidence_quote": "Encryption in transit is enforced on every connection to the platform",
+            "highlight": "Encryption in transit is enforced on every connection to the platform",
+            "highlight_span": [
+              0,
+              69
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 0.4,
+          "rerank_score": 0.0004472834407351911,
+          "nli_contradiction_prob": 0.9999183516935171,
+          "near_duplicates": [
+            {
+              "pair_id": "5d761f6794c30b94",
+              "contradiction_type": "direct_negation",
+              "confidence": 0.85,
+              "subject": "legacy ingest endpoint on the Atlas fabric",
+              "rationale": "Claim A asserts there is no unencrypted path into Vantis. Claim B describes an unencrypted connection pathway (the legacy ingest endpoint on the Atlas fabric). If Vantis and the Atlas fabric legacy ingest endpoint are part of the same system or if the Atlas fabric endpoint is a path into Vantis, these claims directly contradict each other—one denies all unencrypted paths while the other affirms at least one exists.",
+              "resolution_hint": "Clarify whether the Atlas fabric's legacy ingest endpoint constitutes a path into Vantis; if so, Claim A is false.",
+              "a": {
+                "claim_id": "d078d2ee1ac93cca",
+                "doc_id": "aa8dc74c70fdae8a",
+                "filename": "03_data_handling_standard.md",
+                "doc_title": "ENG-STD-014 — Data Handling Standard",
+                "section_id": "8e3db835bcd8c489",
+                "section_heading": "1. Purpose, applicability and legacy estate",
+                "page_span": null,
+                "claim_text": "The legacy ingest endpoint on the Atlas fabric accepts unencrypted connections from allow-listed source ranges.",
+                "evidence_quote": "The legacy ingest endpoint on the Atlas fabric accepts\nunencrypted connections from allow-listed source ranges",
+                "highlight": "The legacy ingest endpoint on the Atlas fabric accepts unencrypted connections from allow-listed source ranges",
+                "highlight_span": [
+                  0,
+                  110
+                ],
+                "polarity": "positive"
+              },
+              "b": {
+                "claim_id": "75c21dbb82115e8e",
+                "doc_id": "e73ee8fe1b54a948",
+                "filename": "04_trust_and_security_overview.md",
+                "doc_title": "Vantis Trust and Security Overview",
+                "section_id": "ce86aa64ec6b2419",
+                "section_heading": "2. Encryption",
+                "page_span": null,
+                "claim_text": "There is no unencrypted path into Vantis.",
+                "evidence_quote": "there is no unencrypted path into Vantis",
+                "highlight": "there is no unencrypted path into Vantis",
+                "highlight_span": [
+                  0,
+                  40
+                ],
+                "polarity": "negative"
+              },
+              "retrieval_score": 0.75,
+              "rerank_score": 0.005742283072322607,
+              "nli_contradiction_prob": 0.9997192393787382,
+              "near_duplicates": []
+            }
+          ]
+        },
+        {
+          "pair_id": "3fd3ce2e92da69fd",
+          "contradiction_type": "direct_negation",
+          "confidence": 0.85,
+          "subject": "Logs",
+          "rationale": "Claim A states that logs remain within the European Union when EU residency is chosen. Claim B states that logs are forwarded to a SIEM within five minutes. If the SIEM is located outside the EU (which is a reasonable inference for many organizations), these claims directly contradict: logs cannot both remain within the EU and be forwarded outside it. However, there is some ambiguity about whether the SIEM is necessarily outside the EU, which moderates confidence slightly.",
+          "resolution_hint": "The SIEM's location relative to the EU would determine which claim is accurate; if the SIEM is within the EU, the claims may not contradict.",
+          "a": {
+            "claim_id": "767e7decf8dd19dc",
+            "doc_id": "aa8dc74c70fdae8a",
+            "filename": "03_data_handling_standard.md",
+            "doc_title": "ENG-STD-014 — Data Handling Standard",
+            "section_id": "7eff20b55f51f808",
+            "section_heading": "4. Logging and third-party services",
+            "page_span": null,
+            "claim_text": "Logs are forwarded to the SIEM within five minutes.",
+            "evidence_quote": "five-minute forwarding to the SIEM",
+            "highlight": "five-minute forwarding to the SIEM",
+            "highlight_span": [
+              0,
+              34
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "54e99a5e2b6b9bda",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "ff92ba785a3f0156",
+            "section_heading": "3. Residency, availability and vendors",
+            "page_span": null,
+            "claim_text": "Customers who choose EU residency have their data remain within the European Union, including tables, backups, and logs.",
+            "evidence_quote": "Choose EU residency and your data never leaves the European Union — not your tables, not\nyour backups, and not your logs.",
+            "highlight": "not your logs",
+            "highlight_span": [
+              107,
+              120
+            ],
+            "polarity": "negative"
+          },
+          "retrieval_score": 0.33333334,
+          "rerank_score": 0.00031697042868472636,
+          "nli_contradiction_prob": 0.8983476248303922,
+          "near_duplicates": []
+        },
+        {
+          "pair_id": "874992d410c8517d",
+          "contradiction_type": "temporal_conflict",
+          "confidence": 0.85,
+          "subject": "Atlas fabric",
+          "rationale": "Claim A states that new customers are being onboarded onto the Atlas storage fabric, implying an ongoing capability to accept new tenants. Claim B states that the Atlas fabric was retired to new tenants as of 1 January 2025, meaning it no longer accepts new tenants after that date. If both claims are current, they cannot both be true: the fabric cannot simultaneously be actively onboarding new customers and be closed to new tenants.",
+          "resolution_hint": "Claim B supersedes Claim A if dated after; Claim A would only be valid if predating the retirement date.",
+          "a": {
+            "claim_id": "fd88ff2e7fa29960",
+            "doc_id": "aa8dc74c70fdae8a",
+            "filename": "03_data_handling_standard.md",
+            "doc_title": "ENG-STD-014 — Data Handling Standard",
+            "section_id": "8e3db835bcd8c489",
+            "section_heading": "1. Purpose, applicability and legacy estate",
+            "page_span": null,
+            "claim_text": "The Atlas fabric was retired to new tenants on 1 January 2025.",
+            "evidence_quote": "The Atlas fabric was retired to new\ntenants on 1 January 2025",
+            "highlight": "The Atlas fabric was retired to new tenants on 1 January 2025",
+            "highlight_span": [
+              0,
+              61
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "e0237bc79c7c72da",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "ff92ba785a3f0156",
+            "section_heading": "3. Residency, availability and vendors",
+            "page_span": null,
+            "claim_text": "New customers are onboarded onto the Atlas storage fabric.",
+            "evidence_quote": "New customers are onboarded onto our Atlas storage fabric",
+            "highlight": "New customers are onboarded onto our Atlas storage fabric",
+            "highlight_span": [
+              0,
+              57
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 1.0,
+          "rerank_score": 0.0333433635532856,
+          "nli_contradiction_prob": 0.9994550094236405,
+          "near_duplicates": []
+        }
+      ]
+    },
+    {
+      "doc_a_id": "e73ee8fe1b54a948",
+      "doc_b_id": "c1053e745add9d38",
+      "doc_a": "04_trust_and_security_overview.md",
+      "doc_b": "05_incident_response_runbook.md",
+      "findings": [
+        {
+          "pair_id": "da636c40dc53a4a9",
+          "contradiction_type": "direct_negation",
+          "confidence": 0.92,
+          "subject": "security events",
+          "rationale": "Claim A asserts that every security event, however minor, is disclosed to affected customers. Claim B asserts that Severity 3 and 4 incidents are not communicated to customers. These statements directly contradict each other: Claim A says all events are disclosed (including minor ones), while Claim B says certain incident severities (3 and 4, which are typically lower-severity classifications) are not communicated. Both cannot be true simultaneously.",
+          "resolution_hint": "The claims reference different incident classification systems or contexts; clarification of whether Severity 3 and 4 incidents fall within the scope of \"every security event\" as stated in Claim A would resolve the contradiction.",
+          "a": {
+            "claim_id": "40e4700547d24b21",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "0d845ad3f4c9bb60",
+            "section_heading": "4. Deletion and incident transparency",
+            "page_span": null,
+            "claim_text": "Every security event, however minor, is disclosed to the affected customers.",
+            "evidence_quote": "every security event, however minor, is disclosed to the\naffected customers rather than triaged away quietly",
+            "highlight": "every security event, however minor, is disclosed to the affected customers",
+            "highlight_span": [
+              0,
+              75
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "de34c8037b61e020",
+            "doc_id": "c1053e745add9d38",
+            "filename": "05_incident_response_runbook.md",
+            "doc_title": "Incident Response Runbook v4",
+            "section_id": "8c57498f01325e56",
+            "section_heading": "3. Notification",
+            "page_span": null,
+            "claim_text": "Severity 3 and 4 incidents are not communicated to customers.",
+            "evidence_quote": "are not communicated to\ncustomers",
+            "highlight": "are not communicated to customers",
+            "highlight_span": [
+              0,
+              33
+            ],
+            "polarity": "negative"
+          },
+          "retrieval_score": 0.18285716,
+          "rerank_score": 0.0016789345536381006,
+          "nli_contradiction_prob": 0.9997679013100645,
+          "near_duplicates": []
+        },
+        {
+          "pair_id": "0828e7004989cf0d",
+          "contradiction_type": "temporal_conflict",
+          "confidence": 0.87,
+          "subject": "Security Incident Playbook",
+          "rationale": "Claim A asserts that the Security Incident Playbook is currently at version 2, implying it is in active use. Claim B states that version 2 is withdrawn and must not be used, indicating it is no longer current or acceptable for use. These statements conflict about whether version 2 is the active, usable version at the present time.",
+          "resolution_hint": "Claim B supersedes Claim A if it reflects a more recent decision to withdraw version 2 from use.",
+          "a": {
+            "claim_id": "5b079b8e4e8cdcf2",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "0d845ad3f4c9bb60",
+            "section_heading": "4. Deletion and incident transparency",
+            "page_span": null,
+            "claim_text": "The Security Incident Playbook is currently at version 2.",
+            "evidence_quote": "currently at version 2",
+            "highlight": "currently at version 2",
+            "highlight_span": [
+              0,
+              22
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "d399754aac9660eb",
+            "doc_id": "c1053e745add9d38",
+            "filename": "05_incident_response_runbook.md",
+            "doc_title": "Incident Response Runbook v4",
+            "section_id": "b60367bfc1579b1d",
+            "section_heading": "1. Scope, severity and objectives",
+            "page_span": null,
+            "claim_text": "The Security Incident Playbook version 2 is withdrawn and must not be used.",
+            "evidence_quote": "which is\nwithdrawn and must not be used",
+            "highlight": "which is withdrawn and must not be used",
+            "highlight_span": [
+              0,
+              39
+            ],
+            "polarity": "negative"
+          },
+          "retrieval_score": 1.0,
+          "rerank_score": 0.00022098298359196633,
+          "nli_contradiction_prob": 0.9995126654618314,
+          "near_duplicates": []
+        },
+        {
+          "pair_id": "27e14a698f7d5b5a",
+          "contradiction_type": "numerical_mismatch",
+          "confidence": 0.85,
+          "subject": "Vantis",
+          "rationale": "The two claims specify incompatible timeframes for the same action—notifying regulators of incidents. Claim A allows 72 hours for reportable incidents, while Claim B commits to 24 hours for confirmed breaches. Since a confirmed breach is a type of reportable incident, both claims would apply to the same event but mandate different notification deadlines, making simultaneous compliance impossible.",
+          "resolution_hint": "Claim B sets a stricter (shorter) timeline; if both policies apply, the 24-hour commitment would supersede the 72-hour standard for breaches.",
+          "a": {
+            "claim_id": "7d2a6e6dbbcc6b4b",
+            "doc_id": "e73ee8fe1b54a948",
+            "filename": "04_trust_and_security_overview.md",
+            "doc_title": "Vantis Trust and Security Overview",
+            "section_id": "5ee01162afeaeedf",
+            "section_heading": "1. Our approach and assurance",
+            "page_span": null,
+            "claim_text": "Vantis commits to notifying regulators within 24 hours of any confirmed breach.",
+            "evidence_quote": "we commit to notifying regulators within 24 hours of any confirmed breach",
+            "highlight": "we commit to notifying regulators within 24 hours of any confirmed breach",
+            "highlight_span": [
+              0,
+              73
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "3cbc52c7b339cf35",
+            "doc_id": "c1053e745add9d38",
+            "filename": "05_incident_response_runbook.md",
+            "doc_title": "Incident Response Runbook v4",
+            "section_id": "8c57498f01325e56",
+            "section_heading": "3. Notification",
+            "page_span": null,
+            "claim_text": "Regulator notification is prepared within 72 hours where the incident is reportable.",
+            "evidence_quote": "Regulator notification is prepared within 72 hours\nwhere the incident is reportable",
+            "highlight": "Regulator notification is prepared within 72 hours where the incident is reportable",
+            "highlight_span": [
+              0,
+              83
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 0.8333334,
+          "rerank_score": 0.2659342885017395,
+          "nli_contradiction_prob": 0.9936050643053591,
+          "near_duplicates": []
+        }
+      ]
+    }
+  ],
+  "type_counts": {
+    "direct_negation": 13,
+    "numerical_mismatch": 5,
+    "temporal_conflict": 5,
+    "obligation_reversal": 1,
+    "scope_jurisdiction": 1
+  },
+  "stats": {
+    "document_count": 5,
+    "chunk_count": 25,
+    "claim_count": 173,
+    "candidate_pair_count": 2842,
+    "reranked_pair_count": 1730,
+    "nli_kept_count": 528,
+    "extraction_cache_hits": 25,
+    "extraction_llm_calls": 0,
+    "rejected_evidence_count": 0,
+    "decontextualization_flags": 10,
+    "truncated_chunk_count": 0,
+    "judge_cache_hits": 344,
+    "judge_llm_calls": 184,
+    "hallucination_count": 0
+  },
+  "cost": {
+    "total_usd": 0.46085100000000023,
+    "call_count": 184,
+    "input_tokens": 345856,
+    "output_tokens": 22999
+  },
+  "partial": false,
+  "partial_reason": null
+}

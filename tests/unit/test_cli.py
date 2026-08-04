@@ -207,3 +207,26 @@ def test_partial_audit_is_flagged_on_stderr(monkeypatch: pytest.MonkeyPatch, cor
     result = runner.invoke(cli.app, ["audit", str(corpus)])
     assert result.exit_code == 0  # a ceiling stop is a degraded success, not a failure
     assert "PARTIAL" in result.output
+
+
+def test_eval_rejects_suite_together_with_positional_arguments(tmp_path: Path) -> None:
+    result = runner.invoke(
+        cli.app,
+        ["eval", str(tmp_path / "g.json"), str(tmp_path / "r.json"), "--suite", str(tmp_path)],
+    )
+    assert result.exit_code == 2
+    assert "not both" in result.output
+
+
+def test_eval_requires_a_benchmark() -> None:
+    result = runner.invoke(cli.app, ["eval"])
+    assert result.exit_code == 2
+    assert "--suite" in result.output
+
+
+def test_eval_reports_an_unusable_suite_manifest(tmp_path: Path) -> None:
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(json.dumps({"benchmarks": []}), encoding="utf-8")
+    result = runner.invoke(cli.app, ["eval", "--suite", str(manifest)])
+    assert result.exit_code == 1
+    assert "invalid suite manifest" in result.output

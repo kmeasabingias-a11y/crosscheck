@@ -37,6 +37,7 @@ end-to-end detection.
 
 import re
 from collections.abc import Iterable, Sequence
+from statistics import median
 from typing import Literal
 
 from pydantic import Field
@@ -174,6 +175,12 @@ class BenchmarkMetrics(CrossCheckModel):
     )
     decontextualization_rate: float = Field(
         default=0.0, description="Claims flagged with an unresolved reference (§7.1)."
+    )
+    median_gold_overlap: float | None = Field(
+        default=None,
+        description="Median lexical overlap across the gold pairs — a property of the benchmark, "
+        "not of the system. Recorded because it is the cheapest available evidence for how hard "
+        "a benchmark is, and it is computable without spending anything (§9.1).",
     )
     cost_usd: float = 0.0
     cost_per_100_documents: float = 0.0
@@ -446,6 +453,7 @@ def score_benchmark(
             if report.claim_count
             else 0.0
         ),
+        median_gold_overlap=(median(_gold_overlap(pair) for pair in usable) if usable else None),
         cost_usd=report.cost.total_usd,
         cost_per_100_documents=(report.cost.total_usd / documents * 100) if documents else 0.0,
         partial=report.partial,

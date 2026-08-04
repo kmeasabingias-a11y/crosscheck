@@ -1,0 +1,879 @@
+{
+  "name": "vantis-handwritten",
+  "version": "v1",
+  "corpus_dir": "corpus",
+  "origin": "handwritten",
+  "seed": null,
+  "generator_model": null,
+  "judge_model_at_authoring": "claude-haiku-4-5",
+  "pairs": [
+    {
+      "pair_id": "b3a4b309fb2e540c",
+      "contradiction_type": "numerical_mismatch",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "3fed5eddd7ab68d3",
+        "section_heading": "3. Where we keep your information, and for how long",
+        "text": "We keep the records we hold about your\naccount for two years after you close it",
+        "evidence_quote": "We keep the records we hold about your\naccount for two years after you close it",
+        "char_span": [
+          142,
+          221
+        ]
+      },
+      "b": {
+        "document": "02_data_processing_addendum.md",
+        "section_id": "27d93aab659c9769",
+        "section_heading": "4. Transfers, data subject requests and deletion",
+        "text": "shall complete that deletion within 30 days of termination",
+        "evidence_quote": "shall complete that deletion within 30 days of termination",
+        "char_span": [
+          573,
+          631
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "Closing an account is termination, and account records are Personal Data, so two years and 30 days cannot both hold.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "565236a04b9973db",
+      "contradiction_type": "numerical_mismatch",
+      "a": {
+        "document": "02_data_processing_addendum.md",
+        "section_id": "27d93aab659c9769",
+        "section_heading": "4. Transfers, data subject requests and deletion",
+        "text": "shall complete that deletion within 30 days of termination",
+        "evidence_quote": "shall complete that deletion within 30 days of termination",
+        "char_span": [
+          573,
+          631
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "7393a864c8f996dc",
+        "section_heading": "2. Storage, residency and retention",
+        "text": "The retention lifecycle job\npurges objects belonging to terminated tenants on a 90-day cadence.",
+        "evidence_quote": "The retention lifecycle job\npurges objects belonging to terminated tenants on a 90-day cadence.",
+        "char_span": [
+          237,
+          332
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "The contractual deadline is 30 days; the job that would meet it runs on a 90-day cycle, so it cannot.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "0c147e557548ea12",
+      "contradiction_type": "direct_negation",
+      "a": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "0d845ad3f4c9bb60",
+        "section_heading": "4. Deletion and incident transparency",
+        "text": "Deletion is immediate and irreversible: when you delete a record it is gone from our systems\nat once, with no waiting period and no hidden copy.",
+        "evidence_quote": "Deletion is immediate and irreversible: when you delete a record it is gone from our systems\nat once, with no waiting period and no hidden copy.",
+        "char_span": [
+          1,
+          145
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "7393a864c8f996dc",
+        "section_heading": "2. Storage, residency and retention",
+        "text": "Deleted objects remain\nrecoverable from the soft-delete tier for 35 days before the compaction job removes them\npermanently.",
+        "evidence_quote": "Deleted objects remain\nrecoverable from the soft-delete tier for 35 days before the compaction job removes them\npermanently.",
+        "char_span": [
+          333,
+          457
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "'No waiting period and no hidden copy' is precisely denied by a 35-day recoverable soft-delete tier.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "e28fac2b36dc3e2e",
+      "contradiction_type": "direct_negation",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "3fed5eddd7ab68d3",
+        "section_heading": "3. Where we keep your information, and for how long",
+        "text": "Nothing we\nhold about you is kept indefinitely; every category of information we collect has an end\ndate",
+        "evidence_quote": "Nothing we\nhold about you is kept indefinitely; every category of information we collect has an end\ndate",
+        "char_span": [
+          347,
+          451
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "8e3db835bcd8c489",
+        "section_heading": "1. Purpose, applicability and legacy estate",
+        "text": "Buckets provisioned before the Helios migration are exempt from the retention\nlifecycle job and retain every object version indefinitely",
+        "evidence_quote": "Buckets provisioned before the Helios migration are exempt from the retention\nlifecycle job and retain every object version indefinitely",
+        "char_span": [
+          366,
+          502
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "The exemption is buried in a legacy-estate paragraph, which is where real corpora hide the thing that contradicts the public promise.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "4f0ef0d44acf006b",
+      "contradiction_type": "numerical_mismatch",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "3fed5eddd7ab68d3",
+        "section_heading": "3. Where we keep your information, and for how long",
+        "text": "Support tickets and their attachments are deleted after 12 months.",
+        "evidence_quote": "Support tickets and their attachments are deleted after 12 months.",
+        "char_span": [
+          280,
+          346
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "7393a864c8f996dc",
+        "section_heading": "2. Storage, residency and retention",
+        "text": "The support archive, which holds ticket bodies and their attachments, is\nretained for seven years to satisfy our insurers.",
+        "evidence_quote": "The support archive, which holds ticket bodies and their attachments, is\nretained for seven years to satisfy our insurers.",
+        "char_span": [
+          458,
+          580
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "Same objects, twelve months against seven years. Only the phrase 'attachments' is shared; 'support archive' never appears in the notice.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "6199365f92e55a51",
+      "contradiction_type": "numerical_mismatch",
+      "a": {
+        "document": "02_data_processing_addendum.md",
+        "section_id": "b472a7eab3ca6d1d",
+        "section_heading": "2. Roles and Sub-processors",
+        "text": "Vantis\nshall give Customer at least 30 days' prior written notice before appointing a new\nSub-processor",
+        "evidence_quote": "Vantis\nshall give Customer at least 30 days' prior written notice before appointing a new\nSub-processor",
+        "char_span": [
+          263,
+          366
+        ]
+      },
+      "b": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "ff92ba785a3f0156",
+        "section_heading": "3. Residency, availability and vendors",
+        "text": "we publish new vendor additions to the trust centre two weeks before they go\nlive",
+        "evidence_quote": "we publish new vendor additions to the trust centre two weeks before they go\nlive",
+        "char_span": [
+          450,
+          531
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "Two weeks is less than the 30 days the contract requires. 'Sub-processor' and 'vendor addition' are the same thing under two names.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "a7a87c1cfb01980c",
+      "contradiction_type": "direct_negation",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "d99f42c6c226cd1f",
+        "section_heading": "2. What we do with your information",
+        "text": "We do not share your\ninformation with any third party for their own purposes.",
+        "evidence_quote": "We do not share your\ninformation with any third party for their own purposes.",
+        "char_span": [
+          154,
+          231
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "7eff20b55f51f808",
+        "section_heading": "4. Logging and third-party services",
+        "text": "Aggregated query telemetry is forwarded to our analytics vendor, who may use it to\nimprove their own models.",
+        "evidence_quote": "Aggregated query telemetry is forwarded to our analytics vendor, who may use it to\nimprove their own models.",
+        "char_span": [
+          185,
+          293
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "'For their own purposes' is exactly what 'to improve their own models' describes.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "1165e4b0dda3743d",
+      "contradiction_type": "obligation_reversal",
+      "a": {
+        "document": "02_data_processing_addendum.md",
+        "section_id": "b472a7eab3ca6d1d",
+        "section_heading": "2. Roles and Sub-processors",
+        "text": "Vantis shall not onboard that Sub-processor for so long as the objection remains\noutstanding",
+        "evidence_quote": "Vantis shall not onboard that Sub-processor for so long as the objection remains\noutstanding",
+        "char_span": [
+          532,
+          624
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "7eff20b55f51f808",
+        "section_heading": "4. Logging and third-party services",
+        "text": "customer objections are recorded in the vendor register but do not block go-live",
+        "evidence_quote": "customer objections are recorded in the vendor register but do not block go-live",
+        "char_span": [
+          441,
+          521
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "The contract makes an objection blocking; the engineering standard makes it advisory.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "c6c19967056ccd50",
+      "contradiction_type": "obligation_reversal",
+      "a": {
+        "document": "02_data_processing_addendum.md",
+        "section_id": "b472a7eab3ca6d1d",
+        "section_heading": "2. Roles and Sub-processors",
+        "text": "Vantis shall Process Personal\nData only on documented instructions from Customer",
+        "evidence_quote": "Vantis shall Process Personal\nData only on documented instructions from Customer",
+        "char_span": [
+          59,
+          139
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "78e2fde63f731b44",
+        "section_heading": "3. Access and encryption",
+        "text": "Platform engineering may query tenant datasets directly, without a customer ticket, when\ninvestigating a performance regression.",
+        "evidence_quote": "Platform engineering may query tenant datasets directly, without a customer ticket, when\ninvestigating a performance regression.",
+        "char_span": [
+          446,
+          574
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "Querying without a ticket is processing without a documented instruction.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "fa5d1704d4f7d202",
+      "contradiction_type": "scope_jurisdiction",
+      "a": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "ff92ba785a3f0156",
+        "section_heading": "3. Residency, availability and vendors",
+        "text": "Choose EU residency and your data never leaves the European Union",
+        "evidence_quote": "Choose EU residency and your data never leaves the European Union",
+        "char_span": [
+          1,
+          66
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "7393a864c8f996dc",
+        "section_heading": "2. Storage, residency and retention",
+        "text": "Backup\nsnapshots from all regions replicate nightly to the us-east-2 disaster-recovery bucket",
+        "evidence_quote": "Backup\nsnapshots from all regions replicate nightly to the us-east-2 disaster-recovery bucket",
+        "char_span": [
+          82,
+          175
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "The overview closes the loophole explicitly ('not your backups'), and the standard opens it for every region.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "ecee2df92113bf16",
+      "contradiction_type": "scope_jurisdiction",
+      "a": {
+        "document": "02_data_processing_addendum.md",
+        "section_id": "27d93aab659c9769",
+        "section_heading": "4. Transfers, data subject requests and deletion",
+        "text": "Vantis shall not transfer Personal Data outside the European Economic Area, nor permit\naccess to it from outside the European Economic Area",
+        "evidence_quote": "Vantis shall not transfer Personal Data outside the European Economic Area, nor permit\naccess to it from outside the European Economic Area",
+        "char_span": [
+          1,
+          140
+        ]
+      },
+      "b": {
+        "document": "01_privacy_notice.md",
+        "section_id": "d99f42c6c226cd1f",
+        "section_heading": "2. What we do with your information",
+        "text": "Our support team, which is based\nin Manila and Bangalore, may open your workspace when that is the only way to resolve a\nticket you have raised.",
+        "evidence_quote": "Our support team, which is based\nin Manila and Bangalore, may open your workspace when that is the only way to resolve a\nticket you have raised.",
+        "char_span": [
+          415,
+          559
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "Support access from a third country is the access the DPA forbids. Neither side uses the other's vocabulary.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "d34895b12a8061c4",
+      "contradiction_type": "scope_jurisdiction",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "3fed5eddd7ab68d3",
+        "section_heading": "3. Where we keep your information, and for how long",
+        "text": "Your information is stored in the region you select when you sign up",
+        "evidence_quote": "Your information is stored in the region you select when you sign up",
+        "char_span": [
+          1,
+          69
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "7eff20b55f51f808",
+        "section_heading": "4. Logging and third-party services",
+        "text": "Query logs, which include the full text of submitted queries and any literal values they\ncontain, are written to the central log estate in eu-west-1 regardless of the tenant's\nregion.",
+        "evidence_quote": "Query logs, which include the full text of submitted queries and any literal values they\ncontain, are written to the central log estate in eu-west-1 regardless of the tenant's\nregion.",
+        "char_span": [
+          1,
+          184
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "Query literals are the customer's information, so a non-EU tenant's data leaves its selected region.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "6072b72b4ae77e84",
+      "contradiction_type": "direct_negation",
+      "a": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "ce86aa64ec6b2419",
+        "section_heading": "2. Encryption",
+        "text": "Every byte we hold is encrypted at rest with keys you control",
+        "evidence_quote": "Every byte we hold is encrypted at rest with keys you control",
+        "char_span": [
+          1,
+          62
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "78e2fde63f731b44",
+        "section_heading": "3. Access and encryption",
+        "text": "Customer-managed keys are available on the\nEnterprise plan; every other tenant is served by platform-managed keys held in the regional\nkey service.",
+        "evidence_quote": "Customer-managed keys are available on the\nEnterprise plan; every other tenant is served by platform-managed keys held in the regional\nkey service.",
+        "char_span": [
+          45,
+          192
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "'Keys you control' is true for one plan, and the overview claims it universally.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "4e01dc5c98fd25c8",
+      "contradiction_type": "direct_negation",
+      "a": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "ce86aa64ec6b2419",
+        "section_heading": "2. Encryption",
+        "text": "there is no unencrypted path into Vantis, and there never has been",
+        "evidence_quote": "there is no unencrypted path into Vantis, and there never has been",
+        "char_span": [
+          266,
+          332
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "8e3db835bcd8c489",
+        "section_heading": "1. Purpose, applicability and legacy estate",
+        "text": "The legacy ingest endpoint on the Atlas fabric accepts\nunencrypted connections from allow-listed source ranges",
+        "evidence_quote": "The legacy ingest endpoint on the Atlas fabric accepts\nunencrypted connections from allow-listed source ranges",
+        "char_span": [
+          556,
+          666
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "An absolute claim against a named exception. The retrieval problem is that the two sentences share almost no words beyond 'unencrypted'.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "c676af3f58ef5291",
+      "contradiction_type": "numerical_mismatch",
+      "a": {
+        "document": "02_data_processing_addendum.md",
+        "section_id": "a369756aa1af549c",
+        "section_heading": "3. Security, incidents and audit",
+        "text": "Vantis shall notify Customer of a Security Incident\nwithout undue delay and in any event within 24 hours of becoming aware of it",
+        "evidence_quote": "Vantis shall notify Customer of a Security Incident\nwithout undue delay and in any event within 24 hours of becoming aware of it",
+        "char_span": [
+          205,
+          333
+        ]
+      },
+      "b": {
+        "document": "05_incident_response_runbook.md",
+        "section_id": "8c57498f01325e56",
+        "section_heading": "3. Notification",
+        "text": "Customer notification is sent within 72 hours of an incident being declared",
+        "evidence_quote": "Customer notification is sent within 72 hours of an incident being declared",
+        "char_span": [
+          1,
+          76
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "The runbook that implements the obligation allows three times the contractual window.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "5107fd14ab0b5d0a",
+      "contradiction_type": "numerical_mismatch",
+      "a": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "5ee01162afeaeedf",
+        "section_heading": "1. Our approach and assurance",
+        "text": "we commit to notifying regulators within 24 hours of any confirmed breach",
+        "evidence_quote": "we commit to notifying regulators within 24 hours of any confirmed breach",
+        "char_span": [
+          636,
+          709
+        ]
+      },
+      "b": {
+        "document": "05_incident_response_runbook.md",
+        "section_id": "8c57498f01325e56",
+        "section_heading": "3. Notification",
+        "text": "Regulator notification is prepared within 72 hours\nwhere the incident is reportable",
+        "evidence_quote": "Regulator notification is prepared within 72 hours\nwhere the incident is reportable",
+        "char_span": [
+          130,
+          213
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "Same obligation, sales voice against operational voice, 24 hours against 72.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "8fad1dbca08ba3f6",
+      "contradiction_type": "obligation_reversal",
+      "a": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "0d845ad3f4c9bb60",
+        "section_heading": "4. Deletion and incident transparency",
+        "text": "every security event, however minor, is disclosed to the\naffected customers rather than triaged away quietly",
+        "evidence_quote": "every security event, however minor, is disclosed to the\naffected customers rather than triaged away quietly",
+        "char_span": [
+          215,
+          323
+        ]
+      },
+      "b": {
+        "document": "05_incident_response_runbook.md",
+        "section_id": "8c57498f01325e56",
+        "section_heading": "3. Notification",
+        "text": "Severity 3 and 4 incidents are recorded in the incident register and are not communicated to\ncustomers.",
+        "evidence_quote": "Severity 3 and 4 incidents are recorded in the incident register and are not communicated to\ncustomers.",
+        "char_span": [
+          266,
+          369
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "'However minor' is contradicted by an explicit floor on what gets communicated.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "4eceb35ba0b10a24",
+      "contradiction_type": "obligation_reversal",
+      "a": {
+        "document": "02_data_processing_addendum.md",
+        "section_id": "a369756aa1af549c",
+        "section_heading": "3. Security, incidents and audit",
+        "text": "Customer may audit Vantis' processing facilities and records once per calendar year, on 30\ndays' prior written notice",
+        "evidence_quote": "Customer may audit Vantis' processing facilities and records once per calendar year, on 30\ndays' prior written notice",
+        "char_span": [
+          431,
+          548
+        ]
+      },
+      "b": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "5ee01162afeaeedf",
+        "section_heading": "1. Our approach and assurance",
+        "text": "In place of customer audits we provide our SOC 2\nreport; on-site inspection of our facilities is not offered",
+        "evidence_quote": "In place of customer audits we provide our SOC 2\nreport; on-site inspection of our facilities is not offered",
+        "char_span": [
+          402,
+          510
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "A contractual right withdrawn by a policy document.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "948c9795343c3b7f",
+      "contradiction_type": "direct_negation",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "d99f42c6c226cd1f",
+        "section_heading": "2. What we do with your information",
+        "text": "Only you can see the contents of your workspace.",
+        "evidence_quote": "Only you can see the contents of your workspace.",
+        "char_span": [
+          105,
+          153
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "78e2fde63f731b44",
+        "section_heading": "3. Access and encryption",
+        "text": "Support engineers may assume a tenant session through the break-glass console\nwith a recorded justification",
+        "evidence_quote": "Support engineers may assume a tenant session through the break-glass console\nwith a recorded justification",
+        "char_span": [
+          193,
+          300
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "An exclusive-access promise against a documented internal path to the same data.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "8711464a06b56f2e",
+      "contradiction_type": "numerical_mismatch",
+      "a": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "78e2fde63f731b44",
+        "section_heading": "3. Access and encryption",
+        "text": "A\nbreak-glass grant expires automatically after 8 hours and cannot be extended in place.",
+        "evidence_quote": "A\nbreak-glass grant expires automatically after 8 hours and cannot be extended in place.",
+        "char_span": [
+          357,
+          445
+        ]
+      },
+      "b": {
+        "document": "05_incident_response_runbook.md",
+        "section_id": "1c5b2144c54beeac",
+        "section_heading": "4. Evidence preservation and review",
+        "text": "Investigators retain elevated access for the duration of the incident and for 14 days\nafterwards",
+        "evidence_quote": "Investigators retain elevated access for the duration of the incident and for 14 days\nafterwards",
+        "char_span": [
+          88,
+          184
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "Fourteen days of retained elevated access cannot coexist with a non-extendable eight-hour grant.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "3d08ef2248fbd1d2",
+      "contradiction_type": "obligation_reversal",
+      "a": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "8e3db835bcd8c489",
+        "section_heading": "1. Purpose, applicability and legacy estate",
+        "text": "Fields classified PII-2 or above must not be written to application logs under any\ncircumstances.",
+        "evidence_quote": "Fields classified PII-2 or above must not be written to application logs under any\ncircumstances.",
+        "char_span": [
+          268,
+          365
+        ]
+      },
+      "b": {
+        "document": "05_incident_response_runbook.md",
+        "section_id": "cd67c04979bbe806",
+        "section_heading": "2. Detection and triage",
+        "text": "Triage begins by searching the request logs for\nthe affected user's email address, which is recorded on every authenticated request",
+        "evidence_quote": "Triage begins by searching the request logs for\nthe affected user's email address, which is recorded on every authenticated request",
+        "char_span": [
+          137,
+          268
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "The runbook depends on the logs containing what the standard forbids them to contain. Neither sentence mentions the other's key term.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "648de260b7c29fa0",
+      "contradiction_type": "numerical_mismatch",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "40d5d9eacdc9f662",
+        "section_heading": "4. Your choices",
+        "text": "We answer requests about your\ninformation within ten days.",
+        "evidence_quote": "We answer requests about your\ninformation within ten days.",
+        "char_span": [
+          146,
+          204
+        ]
+      },
+      "b": {
+        "document": "02_data_processing_addendum.md",
+        "section_id": "27d93aab659c9769",
+        "section_heading": "4. Transfers, data subject requests and deletion",
+        "text": "Vantis shall assist Customer in responding to a request from a\ndata subject to exercise their rights within ten Business Days of receiving the request",
+        "evidence_quote": "Vantis shall assist Customer in responding to a request from a\ndata subject to exercise their rights within ten Business Days of receiving the request",
+        "char_span": [
+          301,
+          451
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "The defined-term trap: 'Business Day' is defined in DPA section 1 as excluding weekends and Irish public holidays, so ten Business Days always exceeds ten days. Resolving it needs a third section, which is why real drift like this survives review.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "da038334e7b93740",
+      "contradiction_type": "direct_negation",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "40d5d9eacdc9f662",
+        "section_heading": "4. Your choices",
+        "text": "You can download a copy of everything we hold about you at any time from the account page",
+        "evidence_quote": "You can download a copy of everything we hold about you at any time from the account page",
+        "char_span": [
+          1,
+          90
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "7393a864c8f996dc",
+        "section_heading": "2. Storage, residency and retention",
+        "text": "Neither the support archive nor the\nquery-log estate is exposed through the tenant export API.",
+        "evidence_quote": "Neither the support archive nor the\nquery-log estate is exposed through the tenant export API.",
+        "char_span": [
+          581,
+          675
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "'Everything' against two named exclusions.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "034338059e835f31",
+      "contradiction_type": "temporal_conflict",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "5eb6031cf4c558ed",
+        "section_heading": "1. About this notice",
+        "text": "This notice, version 3.0, replaces the version we published in March 2024 and takes effect\non 1 September 2025.",
+        "evidence_quote": "This notice, version 3.0, replaces the version we published in March 2024 and takes effect\non 1 September 2025.",
+        "char_span": [
+          1,
+          112
+        ]
+      },
+      "b": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "5ee01162afeaeedf",
+        "section_heading": "1. Our approach and assurance",
+        "text": "Our practices are\ndescribed in our Privacy Notice v2.1 (March 2024), which remains the authoritative statement\nof how we handle customer information",
+        "evidence_quote": "Our practices are\ndescribed in our Privacy Notice v2.1 (March 2024), which remains the authoritative statement\nof how we handle customer information",
+        "char_span": [
+          71,
+          219
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "A superseded version is asserted to be authoritative while its replacement is in force — the canonical stale-document conflict of §6.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "5110477c98f8b4d2",
+      "contradiction_type": "temporal_conflict",
+      "a": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "8e3db835bcd8c489",
+        "section_heading": "1. Purpose, applicability and legacy estate",
+        "text": "The Atlas fabric was retired to new\ntenants on 1 January 2025 and now carries only the accounts migrated before that date.",
+        "evidence_quote": "The Atlas fabric was retired to new\ntenants on 1 January 2025 and now carries only the accounts migrated before that date.",
+        "char_span": [
+          145,
+          267
+        ]
+      },
+      "b": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "ff92ba785a3f0156",
+        "section_heading": "3. Residency, availability and vendors",
+        "text": "New customers are onboarded onto our Atlas storage fabric,\nwhich underpins the residency guarantees described above.",
+        "evidence_quote": "New customers are onboarded onto our Atlas storage fabric,\nwhich underpins the residency guarantees described above.",
+        "char_span": [
+          123,
+          239
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "The overview still sells a fabric that stopped taking new tenants.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "c29468434b3fb850",
+      "contradiction_type": "temporal_conflict",
+      "a": {
+        "document": "05_incident_response_runbook.md",
+        "section_id": "b60367bfc1579b1d",
+        "section_heading": "1. Scope, severity and objectives",
+        "text": "This runbook, version 4, replaces the Security Incident Playbook version 2, which is\nwithdrawn and must not be used.",
+        "evidence_quote": "This runbook, version 4, replaces the Security Incident Playbook version 2, which is\nwithdrawn and must not be used.",
+        "char_span": [
+          1,
+          117
+        ]
+      },
+      "b": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "0d845ad3f4c9bb60",
+        "section_heading": "4. Deletion and incident transparency",
+        "text": "Our incident response follows the\nSecurity Incident Playbook, which is reviewed annually and is currently at version 2",
+        "evidence_quote": "Our incident response follows the\nSecurity Incident Playbook, which is reviewed annually and is currently at version 2",
+        "char_span": [
+          325,
+          443
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "A withdrawn document is named as the live procedure.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "371482bba8a3826f",
+      "contradiction_type": "temporal_conflict",
+      "a": {
+        "document": "01_privacy_notice.md",
+        "section_id": "40d5d9eacdc9f662",
+        "section_heading": "4. Your choices",
+        "text": "As of version 3.0 we no longer embed third-party analytics scripts on the Vantis\nconsole",
+        "evidence_quote": "As of version 3.0 we no longer embed third-party analytics scripts on the Vantis\nconsole",
+        "char_span": [
+          270,
+          358
+        ]
+      },
+      "b": {
+        "document": "03_data_handling_standard.md",
+        "section_id": "7eff20b55f51f808",
+        "section_heading": "4. Logging and third-party services",
+        "text": "The console loads the Segment and FullStory scripts on all\nauthenticated pages.",
+        "evidence_quote": "The console loads the Segment and FullStory scripts on all\nauthenticated pages.",
+        "char_span": [
+          294,
+          373
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "A discontinued practice that the engineering standard still describes as current. The vendor names never appear in the notice, so lexical overlap is near zero.",
+      "reviewed": false,
+      "review_verdict": null
+    },
+    {
+      "pair_id": "dd29d0c3ee50e326",
+      "contradiction_type": "numerical_mismatch",
+      "a": {
+        "document": "04_trust_and_security_overview.md",
+        "section_id": "ff92ba785a3f0156",
+        "section_heading": "3. Residency, availability and vendors",
+        "text": "We back the platform with a\n99.99% availability commitment, measured monthly and written into the service level\nagreement.",
+        "evidence_quote": "We back the platform with a\n99.99% availability commitment, measured monthly and written into the service level\nagreement.",
+        "char_span": [
+          240,
+          362
+        ]
+      },
+      "b": {
+        "document": "05_incident_response_runbook.md",
+        "section_id": "b60367bfc1579b1d",
+        "section_heading": "1. Scope, severity and objectives",
+        "text": "The platform\navailability objective is 99.9% measured monthly",
+        "evidence_quote": "The platform\navailability objective is 99.9% measured monthly",
+        "char_span": [
+          343,
+          404
+        ]
+      },
+      "origin": "handwritten",
+      "generator_model": null,
+      "notes": "One nine apart, same metric and same measurement window.",
+      "reviewed": false,
+      "review_verdict": null
+    }
+  ]
+}

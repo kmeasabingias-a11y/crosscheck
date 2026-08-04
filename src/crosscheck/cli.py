@@ -12,7 +12,7 @@ from crosscheck.aggregation.html_renderer import write_html
 from crosscheck.aggregation.report import build_report, write_json
 from crosscheck.config import get_settings
 from crosscheck.evaluation.metrics import DEFAULT_OVERLAP_THRESHOLD
-from crosscheck.evaluation.runner import BenchmarkSpec, evaluate, write_run
+from crosscheck.evaluation.runner import BenchmarkSpec, evaluate, load_suite, write_run
 from crosscheck.llm import LLMError
 from crosscheck.logging_config import configure_logging
 
@@ -141,8 +141,18 @@ def _summarize(result: "orchestrator.AuditResult") -> None:
 
 @app.command()
 def eval(  # noqa: A001 - `eval` is the natural command name; it shadows the builtin only here
-    gold: Annotated[Path, typer.Argument(help="Gold-label JSON for the benchmark.")],
-    report: Annotated[Path, typer.Argument(help="Contradiction report JSON to score.")],
+    gold: Annotated[Path | None, typer.Argument(help="Gold-label JSON for the benchmark.")] = None,
+    report: Annotated[
+        Path | None, typer.Argument(help="Contradiction report JSON to score.")
+    ] = None,
+    suite: Annotated[
+        Path | None,
+        typer.Option(
+            "--suite",
+            help="Suite manifest listing several benchmarks to score into one report. "
+            "Use instead of the GOLD and REPORT arguments.",
+        ),
+    ] = None,
     name: Annotated[
         str, typer.Option("--name", help="Label for this benchmark in the report.")
     ] = "benchmark",
@@ -153,14 +163,39 @@ def eval(  # noqa: A001 - `eval` is the natural command name; it shadows the bui
         float, typer.Option("--overlap-threshold", help="Lexical-overlap cut for the strata.")
     ] = DEFAULT_OVERLAP_THRESHOLD,
 ) -> None:
-    """Score a contradiction report against a gold set and write an evaluation report.
+    """Score contradiction reports against their gold sets and write an evaluation report.
 
     Scoring is free and instant - it reads a report `crosscheck audit` already produced
     rather than re-running the pipeline, so iterating on the numbers costs nothing.
+
+    Pass one benchmark as GOLD and REPORT, or several with --suite. Several is the
+    interesting case: the synthetic and hand-written sets belong in one document, because
+    the gap between them is the result.
     """
+    if suite is not None and (gold is not None or report is not None):
+        typer.secho(
+            "pass either --suite or the GOLD and REPORT arguments, not both",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    if suite is None and (gold is None or report is None):
+        typer.secho(
+            "give a benchmark to score: GOLD and REPORT, or --suite MANIFEST",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
     try:
+        specs = (
+            load_suite(suite)
+            if suite is not None
+            # Narrowed by the guards above; mypy cannot see it through the Optionals.
+            else [BenchmarkSpec(name=name, gold_path=gold, report_path=report)]  # type: ignore[arg-type]
+        )
         run = evaluate(
-            [BenchmarkSpec(name=name, gold_path=gold, report_path=report)],
+            specs,
             get_settings(),
             overlap_threshold=overlap_threshold,
             generated_at=datetime.now(UTC),
@@ -168,13 +203,17 @@ def eval(  # noqa: A001 - `eval` is the natural command name; it shadows the bui
     except FileNotFoundError as exc:
         typer.secho(f"not found: {exc.filename}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from None
+    except ValueError as exc:
+        typer.secho(f"invalid suite manifest: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
 
     destination = write_run(run, out)
-    scored = run.benchmarks[0].metrics.grouped.overall
-    typer.echo(
-        f"{name}: precision {scored.precision:.3f} - recall {scored.recall:.3f} - "
-        f"F1 {scored.f1:.3f}"
-    )
-    for warning in run.benchmarks[0].warnings:
-        typer.secho(f"warning: {warning}", fg=typer.colors.YELLOW, err=True)
+    for result in run.benchmarks:
+        scored = result.metrics.grouped.overall
+        typer.echo(
+            f"{result.name}: precision {scored.precision:.3f} - recall {scored.recall:.3f} - "
+            f"F1 {scored.f1:.3f}"
+        )
+        for warning in result.warnings:
+            typer.secho(f"warning: [{result.name}] {warning}", fg=typer.colors.YELLOW, err=True)
     typer.echo(f"wrote {destination}")

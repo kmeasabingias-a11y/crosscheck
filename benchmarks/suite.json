@@ -1,0 +1,14 @@
+{
+  "benchmarks": [
+    {
+      "name": "synthetic-v1",
+      "gold_path": "synthetic/v1/gold.json",
+      "report_path": "synthetic/v1/report.json"
+    },
+    {
+      "name": "handwritten-v1",
+      "gold_path": "handwritten/gold.json",
+      "report_path": "handwritten/report.json"
+    }
+  ]
+}

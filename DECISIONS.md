@@ -2592,3 +2592,217 @@ attached.
 
 **Provenance.** Mine. The provenance block exists because of a concrete failure the day before, not
 because it seemed tidy.
+
+---
+
+## D44 — The hand-written validation set is five registers of one company, and its gold labels are built by a script, not typed (2026-08-04)
+
+**Decision.** Added `benchmarks/handwritten/` — a five-document, 2,124-word fictional corpus with 28
+hand-authored cross-document contradictions — and `scripts/build_handwritten_gold.py`, which
+resolves those contradictions into `gold.json`. This is the §9.1 deliverable that Phase 5 was
+supposed to produce and did not.
+
+**Why it had to exist before anything else in Phase 6.** The synthetic headline (P .852 / R .662 /
+F1 .745) was standing alone in `docs/eval-report.md`. §14 names exactly that — "letting the synthetic
+headline number stand alone" — as the single biggest credibility risk in the project, and §1 explains
+why it is not a stylistic concern: if frontier models are barely better than chance on real
+contradiction detection, a strong F1 on a synthetic benchmark is at least as likely to reflect
+benchmark easiness as a solved problem. Nothing in the repo could distinguish those two explanations.
+
+**The design: one company, five registers.** Five documents state the same organisation's rules in
+five voices — a public privacy notice ("we", "you", "your information"), a contractual DPA
+("Processor", "Personal Data", "Sub-processor", "Business Day"), an internal engineering standard
+("objects", "buckets", "fabric", "lifecycle job"), a sales trust overview (absolute and unqualified),
+and an operational runbook (imperative). Every planted conflict crosses two registers.
+
+That is not decoration. It is where real corpora actually drift — a marketing page promises what the
+contract does not require and the standard does not implement, and nobody re-reads all four together
+— and it is what drives lexical overlap down. Measured with the project's own `lexical_overlap`:
+
+| set | pairs | median overlap | low-overlap stratum (< 0.30) |
+|---|---|---|---|
+| `synthetic/v1` (injected, GPT-4.1) | 139 | 0.310 | 68 / 139 (49%) |
+| `handwritten` | 28 | **0.072** | **26 / 28 (93%)** |
+
+Four times less surface similarity. The reason injected pairs look alike is structural: a generator
+asked to negate a sentence returns the negation in that sentence's vocabulary, because that is the
+only vocabulary the prompt supplied. The register shift is the only way I could think of to break
+that without also making the conflicts arguable.
+
+**The line I held: adversarial in phrasing, unambiguous in substance.** A pair a careful human would
+argue about is a bad gold label however realistic it feels. Two candidates were cut on that test — a
+"we never sell your data" against "aggregated insights are licensed to partners" pair, and a
+deletion-request pair whose other side was an ordinary statutory-retention carve-out. Neither is
+clearly a contradiction, so neither is in the set. The techniques that survived are the ones that hide
+a *certain* conflict rather than soften it: buried exemptions in a legacy-estate paragraph, defined
+terms resolved three sections away ("ten days" against "ten Business Days"), implication rather than
+statement (the runbook never says PII is in the logs — it says triage starts by searching the logs
+for the user's email address, "which is recorded on every authenticated request"), and absolute
+claims against named exceptions.
+
+**Every document is Markdown, deliberately.** The acceptance corpus deliberately spans all four v1
+formats; this one deliberately does not. Gold labels match on the unordered pair of sections (D36),
+and a plain-text document parses to exactly *one* section, so every contradiction touching it would
+share a section key and `duplicate_section_keys` could not tell them apart. Format coverage is the
+acceptance corpus's job; 28 distinguishable labels is this one's.
+
+**The gold set is built, not written.** A gold label carries a `section_id`, which is a content hash
+that changes on any edit to the document, plus two character spans. Hand-maintaining 28 pairs of
+those means 56 opaque hex strings transcribed by hand and stale on the first typo fix — and D31 was
+already a transcription corruption. So the script holds the pairs in the form a human can check
+(file name, heading, verbatim sentence, and an argument for why it is a contradiction) and resolves
+everything machine-shaped: section by unique heading-prefix match, span by `locate_quote`, and the
+stored `text`/`evidence_quote` sliced back out of the source so the label is the document's own bytes
+rather than what I typed. A quote that cannot be found is a hard error, because an unreachable gold
+pair depresses recall forever and looks exactly like a detection miss.
+
+It refuses to write past two invariants: a section-level collision (two pairs spanning the same two
+sections are indistinguishable to the scorer), and a same-document pair (retrieval only considers
+cross-document candidates, so it could never be found by any judge at any threshold).
+
+**Types are unbalanced on purpose.** 9 numerical, 7 direct negation, 5 obligation reversal, 4
+temporal, 3 scope/jurisdiction. The synthetic set is near-uniform because a generator was asked for
+that; real corpora drift on numbers and flat denials constantly and on jurisdiction rarely. The cost
+is statistical power on the small types — 3 pairs means 33 points of recall per finding — so the
+README says outright that per-type rows on the small types are indicative only.
+
+**Planted agreements are in the corpus too.** MFA in three documents, AES-256 at rest in two, annual
+penetration testing in two, 24-hour backups in two. Without them the set measures recall and nothing
+else, because a system that flagged every cross-document pair would score perfectly. The sharpest is
+deliberate: the trust overview and the engineering standard agree almost exactly on encryption at
+rest and disagree completely on key custody, one sentence apart.
+
+**A consequence in the runner.** `BenchmarkResult.warnings` raised "cross-model status is unknown" on
+this set every run — technically true, since a hand-authored set records no generator, and
+meaningless, since there is no generator to record. Both cross-model warnings are now gated on
+`origin == "injected"`. Only an injected benchmark can be inflated by self-recognition. Left ungated,
+the loudest caveat in the report would sit above the benchmark whose provenance is least in doubt,
+which is worse than no caveat — it trains a reader to skip the blockquote.
+
+**What this set is not.** It is fictional, and written by the person doing the measuring, who knew
+the taxonomy while writing. `reviewed` is `false` on every pair — §9.1 sets an ≥85% human-review bar
+for the injected set, and a second reviewer is worth more here, because these labels rest on argument
+rather than on a template. And 28 pairs is small enough that one finding moves recall by 3.6 points.
+All three are in the README rather than in my head. The independent test is the real-corpus check
+(§9.4); this set is a bridge to it, not a substitute.
+
+**Options considered.**
+- *Five registers of one fictional company, gold built by script* (chosen).
+- *Hand-label a real public corpus instead.* That is §9.4, and it is the next thing to run. It is not
+  a substitute: without labels covering the whole corpus you get a hit-rate on the top-20, not
+  precision and recall, so it cannot be scored beside the synthetic set in the same table.
+- *Generate the set with a second model and call it "realistic".* That is a second synthetic set with
+  a different generator, not a hand-written one, and it would inherit the same
+  negation-in-the-source-vocabulary property that makes injected pairs easy.
+- *Reuse the acceptance corpus (Arden Systems) and label it.* Rejected on its own README's evidence:
+  it is "lexically obvious" and "not adversarial" by construction, and it says so — which is what
+  told me what this corpus needed to be.
+
+**What it measured, the same day.** 173 claims from 25 chunks, 2,842 candidate pairs, 528 surviving
+the NLI filter, 17 findings. Scored against the 28 gold pairs under settings identical to the
+synthetic run:
+
+| benchmark | P | R | F1 | low-overlap F1 | median overlap |
+|---|---|---|---|---|---|
+| `synthetic-v1` (injected) | .852 | .662 | **.745** | .667 | 0.310 |
+| `handwritten-v1` | .765 | .464 | **.578** | .571 | 0.072 |
+
+Four things in that, in descending order of how much they changed my mind:
+
+1. **Most of the headline gap is lexical overlap, not the benchmark being hand-written.** Overall F1
+   falls 0.167, but *low-overlap* F1 falls only 0.096 — and the hand-written set is 93% low-overlap
+   against the synthetic set's 49%. Controlling for surface similarity, the two benchmarks nearly
+   agree. That is a better result for the system than the headline suggests, and I would not have
+   been able to say it without the strata §9.2 requires.
+2. **Recall carries the loss; precision mostly holds.** −0.198 recall against −0.087 precision. The
+   system finds fewer hard contradictions, but what it reports is still mostly right — which is the
+   right failure mode for an auditing tool, where a false positive costs a reviewer's afternoon.
+3. **The calibration structure replicates.** On the synthetic set the 0.8–0.9 confidence bin was
+   overconfident by 18 points while 0.9–1.0 was well calibrated. On the hand-written set: 0.8–0.9
+   overconfident by 25 points (n=10, .852 confidence against .600 accuracy), 0.9–1.0 well calibrated
+   (n=6, .930 against 1.000). "Trust ≥0.9, discount 0.8–0.9" was a single-benchmark observation
+   yesterday; it is now a finding that transfers. ECE is worse (.1876 against .0597) but ECE is a
+   scalar over 17 samples and the bins are what matter.
+4. **`scope_jurisdiction` scored 0 of 3, and `obligation_reversal` 1 of 5.** Both were among the
+   weaker types on the synthetic set too (.586 and .733 recall), so this is the same weakness
+   amplified, not a new one. Three pairs is not a measurement — but zero of three is worth chasing,
+   and it is now written down rather than averaged away. Meanwhile `temporal_conflict` scored 4 of 4,
+   inverting its position as the *worst* synthetic type (.571). Supersession language
+   ("replaces", "withdrawn", "remains authoritative") is apparently easier to catch when a human
+   writes it naturally than when a model injects it.
+
+**One number I do not trust yet: type agreement of 0.846**, against 0.413 on the synthetic set. The
+honest reading is that I assigned the gold types myself, knowing the taxonomy, so my labels are
+biased toward what the judge would say. It is not evidence the system classifies better here.
+
+**Judge hallucination rate was 0.0000** — every evidence quote passed the substring check across 528
+judged pairs.
+
+**Provenance.** Mine. The register-shift design came from re-reading the acceptance corpus's
+"Known limitations" section, which had already written down what a hand-written set would have to fix.
+
+---
+
+## D45 — `crosscheck eval --suite` scores several benchmarks into one report (2026-08-04)
+
+**Decision.** Added `BenchmarkSuite` and `load_suite` to the evaluation runner, and a `--suite`
+option to `crosscheck eval`. `benchmarks/suite.json` is committed and lists the synthetic and
+hand-written sets; `docs/eval-report.md` is regenerated from it with one command.
+
+**This closes a follow-up D43 left open deliberately.** That entry noted the module API took a list
+of benchmarks from day one while the CLI took exactly one, on the grounds that a multi-benchmark
+syntax could wait until there was a second benchmark to pass it. There now is one.
+
+**Why it is not a convenience feature.** The gap between the injected and hand-written sets *is* the
+result — it is the thing §9.1 asks for and the thing §14 says must never be omitted. A reader who has
+to open two files and hold both tables in their head to compute that gap will not do it, and the
+synthetic number is the one that will get quoted. Adjacent sections under a single configuration
+block make the comparison the default reading rather than an act of diligence.
+
+**A committed manifest rather than a repeatable option.** `--benchmark name=gold:report` would work,
+but it puts the reproduction recipe in shell history. The manifest *is* the recipe: it is in the
+repo, it is diffable, and the published report cannot quietly diverge from the benchmarks it claims
+to score. Paths with colons or equals signs also need no escaping.
+
+**Paths resolve relative to the manifest, not the working directory.** That is what makes a committed
+manifest portable across checkouts and `cd`s. An empty benchmark list raises rather than rendering a
+cheerful empty report.
+
+**The gap statement is computed, not typed.** §13 requires "an explicit synthetic-vs-real gap
+statement". The obvious way to satisfy it is to write a sentence into `docs/eval-report.md` after
+generating the file — which breaks the property D43 was built around, that the report is a pure
+function of `(reports, gold sets, config)`. A hand-added sentence goes stale the next time the
+numbers move, and a stale claim under an authoritative-looking table is worse than no claim.
+
+So `_comparison_section` renders it: a side-by-side table (name, origin, gold pairs, median gold
+overlap, P/R/F1, low-overlap F1) whenever a run holds two or more benchmarks, plus a sentence with
+both F1s and the delta substituted in whenever exactly one benchmark is injected and one is not. It
+names the hand-authored set first, because the lower number is the one that should be quoted. It can
+assert that the difference is attributable to the benchmarks rather than the system only because
+every benchmark in a run is scored under one `RunConfig` rendered once at the top — the claim and the
+thing that makes it true live in the same file.
+
+`median_gold_overlap` was added to `BenchmarkMetrics` to feed that table. It is a property of the
+benchmark rather than of the system, and it earns its place by being the cheapest evidence available
+for how hard a benchmark is: no API calls, no audit, computable the moment a gold set exists. It is
+what let the hand-written set be justified on a measurement rather than on the argument that injected
+data ought to be easier. `_stratum_f1` returns `None` for an empty stratum and the table prints `—`;
+on a set where one stratum holds 2 of 28 pairs, a fabricated 0.000 would read as catastrophic failure
+rather than as no data.
+
+**Smaller choices.**
+- **`GOLD` and `REPORT` became optional positionals**, and the command validates that exactly one of
+  the two forms was supplied, exiting 2 with a usage message. Typer cannot express "required unless
+  another option is present", so the check is explicit rather than declarative.
+- **Warnings on stderr are now prefixed with the benchmark name.** With two sections in one report an
+  unlabelled caveat no longer says which set it belongs to.
+- **The `eval` command got its first tests.** It had none; argument validation is the part most
+  likely to break and the cheapest to cover.
+
+**Options considered.**
+- *Committed JSON manifest* (chosen).
+- *Repeatable `--benchmark` option.* Rejected: recipe lives in shell history, and quoting is fiddly.
+- *Keep `eval` single-benchmark and concatenate two reports by hand.* Rejected — the concatenation is
+  where the honesty lives, so it should not be a manual step anyone can skip.
+
+**Provenance.** Mine, executing the plan D43 recorded.

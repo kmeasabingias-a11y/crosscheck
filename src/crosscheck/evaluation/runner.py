@@ -55,6 +55,48 @@ class BenchmarkSpec(CrossCheckModel):
     report_path: Path
 
 
+class BenchmarkSuite(CrossCheckModel):
+    """Several benchmarks to score into a single report.
+
+    The point of a suite is that the synthetic and hand-written sets belong in *one* document,
+    next to each other: the gap between them is the result, and a reader who has to open two
+    files to find it will not (§9.1, §14). Committing the manifest also makes the published
+    report reproducible with one command rather than a remembered pair of paths.
+    """
+
+    benchmarks: list[BenchmarkSpec] = Field(default_factory=list)
+
+
+def load_suite(path: Path) -> list[BenchmarkSpec]:
+    """Load a suite manifest, resolving its paths relative to the manifest's own directory.
+
+    Relative resolution is what makes a committed manifest portable: the paths inside it are
+    written relative to the file, so it works from any working directory and on any checkout.
+
+    Args:
+        path: The manifest JSON file.
+
+    Returns:
+        The benchmark specs, with absolute paths.
+
+    Raises:
+        ValueError: If the manifest does not validate, or lists no benchmarks.
+    """
+    suite = BenchmarkSuite.model_validate_json(path.read_text(encoding="utf-8"))
+    if not suite.benchmarks:
+        raise ValueError(f"{path} lists no benchmarks")
+    root = path.resolve().parent
+    return [
+        spec.model_copy(
+            update={
+                "gold_path": (root / spec.gold_path).resolve(),
+                "report_path": (root / spec.report_path).resolve(),
+            }
+        )
+        for spec in suite.benchmarks
+    ]
+
+
 class RunConfig(CrossCheckModel):
     """The pipeline configuration a set of numbers should be read against.
 
@@ -172,16 +214,21 @@ class BenchmarkResult(CrossCheckModel):
                 "claimed by another at grouped granularity. Expected 0 — the report's "
                 "near-duplicate roll-up and the gold set's section matching have diverged."
             )
-        if self.gold.cross_model is False:
-            found.append(
-                "Generator and judge are the **same model family**. §9.1 requires different "
-                "families; these numbers partly measure self-recognition."
-            )
-        if self.gold.cross_model is None:
-            found.append(
-                "Cross-model status is **unknown** — the gold set does not record both the "
-                "generator and the judge it was authored against."
-            )
+        # Only an *injected* benchmark can be inflated by self-recognition, because only an
+        # injected benchmark was written by a model. A hand-written set has no generator to
+        # compare against, so raising "cross-model status unknown" there would be noise
+        # attached to the one benchmark whose provenance is least in doubt (D44).
+        if self.gold.origin == "injected":
+            if self.gold.cross_model is False:
+                found.append(
+                    "Generator and judge are the **same model family**. §9.1 requires different "
+                    "families; these numbers partly measure self-recognition."
+                )
+            if self.gold.cross_model is None:
+                found.append(
+                    "Cross-model status is **unknown** — the gold set does not record both the "
+                    "generator and the judge it was authored against."
+                )
         if self.gold.usable_pair_count < self.gold.pair_count:
             found.append(
                 f"{self.gold.pair_count - self.gold.usable_pair_count} gold pair(s) were excluded "
@@ -356,6 +403,92 @@ def _calibration_section(detection: DetectionMetrics) -> list[str]:
     ]
 
 
+def _stratum_f1(result: BenchmarkResult, name: str) -> float | None:
+    """The grouped F1 for one lexical-overlap stratum, or None if that stratum is empty."""
+    for stratum in result.metrics.grouped.strata:
+        if stratum.name == name:
+            counts = stratum.counts
+            total = counts.true_positives + counts.false_positives + counts.false_negatives
+            return counts.f1 if total else None
+    return None
+
+
+def _comparison_section(run: EvalRun) -> list[str]:
+    """Render the head-to-head table and the gap statement §13 requires.
+
+    Only meaningful when a run scores more than one benchmark, which is the case the suite
+    manifest exists to create. The gap between an injected benchmark and a hand-authored one is
+    the project's central honesty claim, and a reader should not have to compute it by scrolling
+    between two tables.
+
+    Args:
+        run: The scored run.
+
+    Returns:
+        Markdown lines, or an empty list when there is nothing to compare.
+    """
+    if len(run.benchmarks) < 2:
+        return []
+
+    def cell(value: float | None) -> str:
+        return "—" if value is None else f"{value:.3f}"
+
+    lines = [
+        "",
+        "## Benchmarks side by side",
+        "",
+        "The gap between these rows is the result. A number from an injected benchmark is a "
+        "ceiling; a number from a hand-authored one is closer to what a real corpus would give "
+        "(§9.1, §14).",
+        "",
+        *_table(
+            [
+                "benchmark",
+                "origin",
+                "gold pairs",
+                "median overlap",
+                "P",
+                "R",
+                "F1",
+                "low-overlap F1",
+            ],
+            [
+                [
+                    result.name,
+                    result.gold.origin,
+                    str(result.gold.usable_pair_count),
+                    cell(result.metrics.median_gold_overlap),
+                    f"{result.metrics.grouped.overall.precision:.3f}",
+                    f"{result.metrics.grouped.overall.recall:.3f}",
+                    f"{result.metrics.grouped.overall.f1:.3f}",
+                    cell(_stratum_f1(result, "low_overlap")),
+                ]
+                for result in run.benchmarks
+            ],
+        ),
+    ]
+
+    injected = [r for r in run.benchmarks if r.gold.origin == "injected"]
+    authored = [r for r in run.benchmarks if r.gold.origin != "injected"]
+    if len(injected) == 1 and len(authored) == 1:
+        high, low = injected[0], authored[0]
+        delta = high.metrics.grouped.overall.f1 - low.metrics.grouped.overall.f1
+        direction = "below" if delta > 0 else "above"
+        lines += [
+            "",
+            f"**The gap.** `{low.name}` ({low.gold.origin}) scores F1 "
+            f"{low.metrics.grouped.overall.f1:.3f}, {abs(delta):.3f} {direction} the "
+            f"{high.metrics.grouped.overall.f1:.3f} of the injected `{high.name}`. The two runs "
+            "share every pipeline setting in the configuration block above, so the difference is "
+            "attributable to the benchmarks rather than to the system.",
+            "",
+            "Injected pairs are lexically closer to each other than hand-authored ones — a "
+            "generator asked to negate a sentence answers in that sentence's vocabulary — and the "
+            "median-overlap column quantifies it. Quote the lower number, or quote both.",
+        ]
+    return lines
+
+
 def render_markdown(run: EvalRun) -> str:
     """Render an evaluation run as the markdown of ``docs/eval-report.md``.
 
@@ -416,7 +549,12 @@ def render_markdown(run: EvalRun) -> str:
                     ["judge at authoring", gold.judge_model_at_authoring or "—"],
                     [
                         "cross-model (§9.1)",
-                        {True: "yes", False: "NO", None: "unknown"}[gold.cross_model],
+                        # "unknown" is the right answer only for an injected set. A hand-authored
+                        # one has no generator to compare against, so the question does not apply
+                        # and saying "unknown" would imply a gap in the provenance record (D44).
+                        "n/a (hand-authored)"
+                        if gold.origin != "injected"
+                        else {True: "yes", False: "NO", None: "unknown"}[gold.cross_model],
                     ],
                     ["seed", str(gold.seed) if gold.seed is not None else "—"],
                     ["gold pairs scored", str(gold.usable_pair_count)],
@@ -486,8 +624,9 @@ def render_markdown(run: EvalRun) -> str:
         "- **Injected contradictions are cleaner than real drift.** Synthetic numbers are the "
         "ceiling, not the expectation; the hand-written set and the real-corpus check are what "
         "test transfer (§9.1, §9.4).",
-        "",
     ]
+    lines += _comparison_section(run)
+    lines += [""]
     return "\n".join(lines) + "\n"
 
 
