@@ -31,6 +31,16 @@ dependencies = [
     # it the upload route raises at request time rather than at import, so it is a hard dep.
     "python-multipart>=0.0.9",
 ]
+[project.optional-dependencies]
+# The Streamlit demo (§7.7). An extra rather than a core dependency: someone installing the CLI
+# to audit a folder should not pull a web framework, and the deployed demo installs `.[ui]`.
+# httpx moves here from the dev group because the UI is the first thing in the project that
+# *makes* HTTP requests rather than answering them — the service itself never did.
+ui = [
+    "streamlit>=1.40",
+    "httpx>=0.27",
+]
+
 [project.scripts]
 crosscheck = "crosscheck.cli:app"
 
@@ -47,6 +57,12 @@ dev = [
     # Starlette's TestClient is built on httpx. Dev-only: the service itself never makes
     # HTTP requests, it only answers them.
     "httpx>=0.27",
+    # Needed by `tests/unit/test_streamlit_app.py`, which drives the demo through Streamlit's own
+    # AppTest harness. The demo is the deliverable a reader actually looks at (§13), and a smoke
+    # test that renders it catches the failures unit tests structurally cannot — an import error,
+    # a session-state mistake, an exception raised mid-render. Duplicated with the `ui` extra on
+    # purpose so `uv sync --frozen` keeps working unchanged in CI.
+    "streamlit>=1.40",
 ]
 
 # ---------------------------------------------------------------------------

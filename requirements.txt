@@ -1,0 +1,11 @@
+# Dependency manifest for Streamlit Community Cloud, which installs with pip rather than uv.
+#
+# `uv.lock` is the source of truth for every other environment (CI, Docker, local development);
+# this file exists only because the free host does not speak uv. It installs the project plus the
+# `ui` extra, which is enough for explorer mode: the demo reads reports committed to the repo and
+# never loads a model.
+#
+# Measured before relying on it: importing the report module and parsing a real report costs
+# 174 MB of RSS, well inside Community Cloud's ~1 GB. The embedder, reranker and NLI models are
+# imported lazily and explorer mode never triggers them, so torch is installed but never resident.
+.[ui]

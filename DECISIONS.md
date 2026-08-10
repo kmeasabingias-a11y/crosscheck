@@ -3215,3 +3215,78 @@ precision problem, not a reporting one.
 **Provenance.** Mine, following the recommendation to fix this before Phase 8 and 9 — the demo GIF
 and README both render the findings list, and capturing them beforehand would have put a salt-length
 false positive on screen as the headline with the real password change invisible beneath it.
+
+---
+
+## D51 — The Streamlit demo runs in two modes, talks to the service over HTTP, and keeps every decision out of the page (2026-08-10)
+
+**Decision.** Phase 8. Added `ui/streamlit_app.py`, the `crosscheck.ui` package (`client.py`,
+`presenter.py`), a `ui` optional-dependency extra, a `requirements.txt` for the free host, and a
+fourth `ui` service in docker-compose. 410 tests (44 new).
+
+**Two modes, and explorer is not a degraded one.** Live mode appears when a service is reachable:
+upload, audit, poll, render. Explorer mode appears when none is, and reads reports committed to the
+repo. This is forced by arithmetic — the pipeline needs 4.2 GB of models and a running Qdrant, and
+no free host provides that — but it is also the better artefact. §13 wants a deployed URL; a
+reader with thirty seconds wants to see *a real contradiction found in a published NIST standard*,
+not a progress bar. So the deployed demo leads with the 800-63B run and says plainly in the sidebar
+that running your own corpus means `docker compose up` locally.
+
+*Options considered.* **Fly.io running the whole stack** would make the deployed demo the real
+thing, and the spec explicitly allows it — rejected on cost, since it means a standing monthly bill
+for a portfolio project whose entire remaining budget is $17.50 of API credit. **Community Cloud
+running the pipeline** is not an option at 4.2 GB. **No deployment at all** fails §13.
+
+**Measured before designing around it.** I assumed the explorer would need a dependency split to
+fit Community Cloud's ~1 GB, and was wrong: importing the report module and parsing a real report
+costs **174 MB RSS**, because the embedder, reranker and NLI models are all imported lazily and
+explorer mode never triggers them. Torch is installed and never resident. So no restructuring
+happened — §14 says descope what the spec does not ask for, and the measurement said the spec did
+not need it here. `requirements.txt` exists only because the host speaks pip rather than uv; the
+lockfile stays the source of truth everywhere else.
+
+**The UI drives the pipeline over HTTP, not by importing the orchestrator.** A localhost hop costs
+nothing and buys three things: the Phase 7 service layer stays the single way an audit starts, so
+its decisions about resetting the store and refusing concurrent runs apply to the demo instead of
+being quietly bypassed; the UI is a client of a documented contract rather than a second entry
+point into the pipeline; and the demo can point at a service anywhere, which is exactly what the
+compose `ui` service does (`http://api:8000`) without loading a single model in the Streamlit
+process. Request and response bodies are the API's own pydantic models, imported rather than
+restated, so the schema cannot drift.
+
+**No Streamlit import anywhere under `src/`.** Every decision the page makes — mode, highlight
+segmentation, grouping, confidence banding, which bundled reports exist — lives in
+`crosscheck.ui.presenter` and `crosscheck.ui.client`, leaving `streamlit_app.py` with widget calls.
+Streamlit re-runs the whole script on every interaction, which makes logic embedded in a page
+genuinely hard to test, and this is the deliverable the project is judged on. The split is the same
+reasoning that moved the container warm-up out of `scripts/` (D48): importable, `mypy --strict`,
+unit-tested.
+
+**The page is still rendered in CI.** Unit tests on pure functions cannot catch an import error, a
+session-state mistake, or an exception raised mid-render — the failures that actually happen in
+Streamlit. So `test_streamlit_app.py` drives the real page through Streamlit's `AppTest` harness,
+which is why `streamlit` is also in the dev group. Two traps found by writing it: `AppTest.from_file`
+resolves a relative path against its own package rather than the working directory, and a sidebar
+`text_input` supplies its default on every run, so session state cannot be pre-seeded — the mode
+has to be steered through the environment.
+
+**Confidence is rendered against the measured calibration, not as a raw number.** ≥0.90 is shown as
+well calibrated; 0.80–0.90 is shown but labelled overconfident, because that band measured +.181 on
+the synthetic set and +.252 on the hand-written one and *replicated across both*, making it a
+property of the judge rather than of a benchmark. Putting that on the card is the cheapest way the
+demo shows the rigour the project is actually about.
+
+**Verified.** Explorer mode renders the 800-63B report headlessly: 3 bundled reports with the real
+corpus first, 20 contradictions / 2 documents / 771 pairs / $2.5231, grouped in taxonomy order
+(5 direct negation, 6 numerical mismatch, 4 obligation reversal), 15 expandable cards, no exception.
+Live mode renders the upload screen against the running API. The four-service stack comes up with
+`ui` healthy on :8501 and reaching the API by service name. I did **not** run a paid audit through
+the UI: that path is the API's, already covered by its tests and the $0.035 HTTP smoke test in D47,
+and the credit is better spent elsewhere.
+
+**Known gaps.** The image grew 2.27 → 2.71 GB, since it now carries Streamlit and the committed
+reports and serves as one image for all three roles. Explorer mode reads whatever is committed, so
+a stale report on disk is a stale demo. The demo GIF and the deployment itself are Phase 9.
+
+**Provenance.** Mine, following the recommendation to build one app that is live locally and an
+explorer when deployed, rather than choosing between them.

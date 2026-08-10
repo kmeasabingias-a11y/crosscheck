@@ -24,6 +24,14 @@
 # `crosscheck warm-models` CLI command rather than a script.
 !src
 
+# The demo page. Unlike the package it is not installed into site-packages — Streamlit runs a
+# script by path — so it has to be copied in as source.
+!ui
+
+# The reports the demo falls back to when no service is reachable. Only the JSON is needed: the
+# corpora and gold sets are not read by explorer mode, so they stay out of the image.
+!benchmarks/**/report.json
+
 # Re-excluded inside the allow-listed trees: compiled bytecode is regenerated in the image
 # (UV_COMPILE_BYTECODE=1) and would otherwise bust the layer cache on every local test run.
 **/__pycache__

@@ -31,7 +31,7 @@ WORKDIR /app
 # torch dominates that, and it is the difference between a 20-second rebuild and a 10-minute one.
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project --no-editable
+    uv sync --frozen --no-dev --no-install-project --no-editable --extra ui
 
 # Then the project itself, which is small and changes constantly. README.md is copied here
 # rather than with the lockfile because pyproject's `readme` field makes the wheel build read
@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY README.md ./
 COPY src/ ./src/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+    uv sync --frozen --no-dev --no-editable --extra ui
 
 # ---------------------------------------------------------------------------
 # Stage 2 — runtime.
@@ -88,6 +88,13 @@ WORKDIR /app
 # importlib.resources) is installed into site-packages proper, so the source tree is not part
 # of the runtime image — only the venv is.
 COPY --from=builder --chown=crosscheck:crosscheck /app/.venv /app/.venv
+
+# The demo page and the reports it falls back to. Streamlit runs a script by path rather than an
+# installed entry point, so unlike the package these are copied in as files. `--extra ui` above is
+# what puts Streamlit in the venv; it adds ~100 MB to a 2.27 GB image, which is not worth a second
+# image to avoid.
+COPY --chown=crosscheck:crosscheck ui/ /app/ui/
+COPY --chown=crosscheck:crosscheck benchmarks/ /app/benchmarks/
 
 # The two writable paths. /models is the mountpoint for the model-cache volume; creating and
 # chowning it in the image is what gives the volume the right ownership when Docker initialises
