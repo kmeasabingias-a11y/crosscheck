@@ -1,0 +1,30 @@
+# Build context for the CrossCheck image.
+#
+# This is an allow-list, not a deny-list: everything is excluded, then the handful of
+# paths the build genuinely reads are added back. A deny-list would quietly rot — every
+# new directory (a corpus, a results dump, a notebook) would start shipping to the daemon
+# until somebody noticed. The allow-list makes the build's inputs explicit instead, and
+# any new build input has to be added here deliberately.
+#
+# It matters here more than usual. The working tree carries a 1.5 GB `.venv` and a 134 MB
+# `.mypy_cache`, and this repo lives on the Windows filesystem via WSL, where the daemon
+# reads the context one small file at a time. Allow-listing takes the context from ~1.7 GB
+# to under 1 MB.
+
+*
+
+# Dependency resolution: uv installs from the lock, and pyproject's `readme` field means
+# the wheel build reads README.md — without it `uv sync` fails on a missing file.
+!pyproject.toml
+!uv.lock
+!README.md
+
+# The package itself. `scripts/` is deliberately absent: those are repo-maintenance tools that
+# write into benchmarks/, not runtime code, and the model warm-up the container runs is the
+# `crosscheck warm-models` CLI command rather than a script.
+!src
+
+# Re-excluded inside the allow-listed trees: compiled bytecode is regenerated in the image
+# (UV_COMPILE_BYTECODE=1) and would otherwise bust the layer cache on every local test run.
+**/__pycache__
+**/*.py[cod]

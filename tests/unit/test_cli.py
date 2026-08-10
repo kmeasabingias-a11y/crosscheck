@@ -16,6 +16,7 @@ from crosscheck.detection.taxonomy import ContradictionType
 from crosscheck.llm import LLMError
 from crosscheck.models import Claim, DocumentRef, Pair, SectionRef, Verdict
 from crosscheck.orchestrator import AuditResult, AuditStats, CostSummary
+from crosscheck.warmup import WarmupResult
 
 runner = CliRunner()
 
@@ -230,3 +231,42 @@ def test_eval_reports_an_unusable_suite_manifest(tmp_path: Path) -> None:
     result = runner.invoke(cli.app, ["eval", "--suite", str(manifest)])
     assert result.exit_code == 1
     assert "invalid suite manifest" in result.output
+
+
+def _stub_warm(monkeypatch: pytest.MonkeyPatch, results: list[WarmupResult]) -> None:
+    """Replace the warm-up so no model is loaded; `test_warmup.py` covers the stage itself."""
+    monkeypatch.setattr(cli, "build_probes", lambda settings: [])
+    monkeypatch.setattr(cli, "warm", lambda probes: results)
+
+
+def test_warm_models_reports_each_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_warm(
+        monkeypatch,
+        [
+            WarmupResult(stage="dense embedding", model_name="bge-large", seconds=12.5),
+            WarmupResult(stage="reranking", model_name="bge-reranker", seconds=30.0),
+        ],
+    )
+    result = runner.invoke(cli.app, ["warm-models"])
+    assert result.exit_code == 0
+    assert "bge-large" in result.output
+    assert "All 2 model(s) cached and loadable." in result.output
+
+
+def test_warm_models_exits_nonzero_when_a_model_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The container gates the API on this exit code, so a failure must not exit 0."""
+    _stub_warm(
+        monkeypatch,
+        [
+            WarmupResult(stage="dense embedding", model_name="bge-large", seconds=1.0),
+            WarmupResult(
+                stage="NLI filtering",
+                model_name="nli-deberta",
+                seconds=0.2,
+                error="OSError: connection reset",
+            ),
+        ],
+    )
+    result = runner.invoke(cli.app, ["warm-models"])
+    assert result.exit_code == 1
+    assert "1 of 2 model(s) failed to load: nli-deberta" in result.output

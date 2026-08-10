@@ -1,3 +1,16 @@
+# Full local stack: vector store, a one-shot model warm-up, and the API.
+#
+#   docker compose up
+#
+# is the whole quickstart (spec §2). The first run downloads 4.2 GB of models into the
+# `models` volume and takes several minutes; every run after that starts in seconds, and the
+# volume outlives image rebuilds, so iterating on the code never re-downloads a model.
+#
+# To run only the vector store — which is what the CLI and the test suite want, since both run
+# on the host against a local venv:
+#
+#   docker compose up -d qdrant
+
 services:
   qdrant:
     image: qdrant/qdrant:v1.18.2
@@ -9,5 +22,68 @@ services:
       - qdrant_storage:/qdrant/storage
     restart: unless-stopped
 
+  # Downloads and loads every local model, then exits 0. The API waits on that exit code, so a
+  # model that cannot load stops the stack at startup with a named failure instead of surfacing
+  # ten minutes into the first audit as a request that never returns.
+  #
+  # It runs on every `up` and is nearly free once the volume is warm — it reloads the four
+  # models from cache in under 30 seconds and re-verifies they are intact, which is a fair price
+  # for never debugging a half-downloaded model.
+  warm-models:
+    build: .
+    image: crosscheck:0.1.0
+    container_name: crosscheck-warm-models
+    command: ["crosscheck", "warm-models"]
+    environment:
+      # No API key needed: these are the local models, and nothing here calls out to Anthropic.
+      CROSSCHECK_LOG_LEVEL: ${CROSSCHECK_LOG_LEVEL:-INFO}
+    volumes:
+      - models:/models
+    # A one-shot job, not a service. Without this an `up` would treat the clean exit as a crash
+    # and restart it forever.
+    restart: "no"
+    # The image carries a HEALTHCHECK that probes the API on :8000. This container never listens
+    # on anything, so inheriting it would have the warm-up sitting at "health: starting" and then
+    # going unhealthy while working perfectly. Its exit code is the only status that means
+    # anything here, and that is exactly what `service_completed_successfully` reads.
+    healthcheck:
+      disable: true
+
+  api:
+    # Same build and tag as warm-models: the second build is a pure cache hit, and pinning both
+    # to one tag guarantees the models were warmed by the identical image that serves them.
+    build: .
+    image: crosscheck:0.1.0
+    container_name: crosscheck-api
+    depends_on:
+      warm-models:
+        condition: service_completed_successfully
+      qdrant:
+        # Started, not healthy: the API does not touch Qdrant until an audit runs, and the
+        # qdrant image ships no shell or HTTP client to write a healthcheck with.
+        condition: service_started
+    ports:
+      - "8000:8000"
+    environment:
+      CROSSCHECK_QDRANT_URL: http://qdrant:6333
+      # Passed through from the host's .env (or shell). The API answers /health and accepts
+      # uploads without one; only starting an audit needs it.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CROSSCHECK_LOG_LEVEL: ${CROSSCHECK_LOG_LEVEL:-INFO}
+      CROSSCHECK_JUDGE_MODEL: ${CROSSCHECK_JUDGE_MODEL:-claude-sonnet-4-6}
+      CROSSCHECK_EXTRACTION_MODEL: ${CROSSCHECK_EXTRACTION_MODEL:-claude-sonnet-4-6}
+      CROSSCHECK_MAX_AUDIT_COST_USD: ${CROSSCHECK_MAX_AUDIT_COST_USD:-5.00}
+    volumes:
+      - models:/models
+      # Uploaded corpora plus the claim/verdict caches. Persisted so a container restart does
+      # not re-spend tokens re-extracting claims it has already paid for.
+      - audit_state:/app/.crosscheck
+    restart: unless-stopped
+
 volumes:
   qdrant_storage:
+  # 4.2 GB of model weights, written once by warm-models and read by both services. A named
+  # volume rather than a layer in the image: it survives `docker compose build --no-cache` and
+  # every code change, which a baked-in layer would not.
+  models:
+  audit_state:

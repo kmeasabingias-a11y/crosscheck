@@ -15,6 +15,7 @@ from crosscheck.evaluation.metrics import DEFAULT_OVERLAP_THRESHOLD
 from crosscheck.evaluation.runner import BenchmarkSpec, evaluate, load_suite, write_run
 from crosscheck.llm import LLMError
 from crosscheck.logging_config import configure_logging
+from crosscheck.warmup import build_probes, warm
 
 app = typer.Typer(
     name="crosscheck",
@@ -137,6 +138,43 @@ def _summarize(result: "orchestrator.AuditResult") -> None:
     )
     if result.partial:
         typer.secho(f"Audit is PARTIAL: {result.partial_reason}", fg=typer.colors.RED, err=True)
+
+
+@app.command(name="warm-models")
+def warm_models() -> None:
+    """Download and load every local model, then exit.
+
+    The embedder, reranker and NLI models total about 4.2 GB and otherwise download lazily,
+    during whichever audit happens to run first. Run this once to pay that cost up front —
+    the container does exactly this before the API accepts traffic, and it is worth running
+    by hand before a demo on an unreliable connection.
+
+    Exits non-zero if any model fails to load, naming every one that failed.
+    """
+    results = warm(build_probes(get_settings()))
+    for result in results:
+        if result.ok:
+            typer.secho(
+                f"  ok    {result.model_name} ({result.stage}) in {result.seconds:.1f}s",
+                fg=typer.colors.GREEN,
+            )
+        else:
+            typer.secho(
+                f"  FAIL  {result.model_name} ({result.stage}): {result.error}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+
+    failed = [result for result in results if not result.ok]
+    if failed:
+        typer.secho(
+            f"{len(failed)} of {len(results)} model(s) failed to load: "
+            f"{', '.join(result.model_name for result in failed)}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    typer.secho(f"All {len(results)} model(s) cached and loadable.", fg=typer.colors.GREEN)
 
 
 @app.command()

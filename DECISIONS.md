@@ -2972,3 +2972,109 @@ the cost ceiling does not help — parsing happens before any LLM call.
 
 **Provenance.** Mine. The reset-on-every-audit decision came from noticing that money trap #3 in my
 own notes is a human-discipline workaround, and that an API removes the human.
+
+---
+
+## D48 — The container ships without its models; a one-shot warm-up service fills a named volume before the API accepts traffic (2026-08-10)
+
+**Decision.** Added `Dockerfile`, `.dockerignore`, `src/crosscheck/warmup.py` and a
+`crosscheck warm-models` CLI command, and grew `docker-compose.yml` from Qdrant-only to the full
+stack (`qdrant` + `warm-models` + `api`). This closes Phase 7. `docker compose up` is the whole
+quickstart §2 asks for.
+
+**The models do not go in the image.** bge-large (1.3 GB), bge-reranker-v2-m3 (2.2 GB) and
+nli-deberta-v3-base (704 MB) come to 4.2 GB — nearly twice the size of the entire built image,
+which came in at 2.27 GB once the CPU-only torch wheel turned out to be just 183 MB. They live in a named
+`models` volume, written once by a `warm-models` service that runs `crosscheck warm-models` and
+exits, and the API waits on that exit code via `depends_on: condition: service_completed_successfully`.
+
+*Options considered.* **Baking them into a layer above the source COPY** was the obvious
+alternative and I nearly took it: one self-contained image, works offline, no extra service, no
+volume semantics to explain. What decided it against was where the 4.2 GB then lives. As a layer it
+has to be rebuilt on every machine, it is re-pulled after any change to a layer beneath it, and
+`docker compose build --no-cache` — the thing you reach for precisely when something is wrong —
+destroys it. As a volume it survives all of that, including every code change during development,
+which is the case that actually recurs. The image is ~1.9 GB instead of ~6 GB and the bytes over
+the wire are identical either way; only *how often* you pay them differs. **Downloading lazily on
+first use** (the status quo, no warm-up at all) was rejected outright: it puts a ten-minute download
+inside the first audit request, where it reads as a hang, and a failed download surfaces as a
+mysterious audit error rather than a startup error.
+
+**The warm-up runs real inferences rather than downloading files.** The obvious implementation is
+`huggingface_hub.snapshot_download` per repo id, and it is wrong twice. A full snapshot pulls every
+artefact in a repo — bge-large publishes `pytorch_model.bin` *and* `model.safetensors` *and* ONNX
+exports — so it fetches gigabytes the pipeline never opens; and the `allow_patterns` list needed to
+avoid that is a second, drifting copy of sentence-transformers' own loading rules. Driving the real
+embedder, reranker and NLI scorer through one tiny inference caches exactly the files the pipeline
+opens, by construction, because it *is* the pipeline opening them. It also buys a real smoke test:
+a non-zero exit means the models cannot load in this container at all, said at startup rather than
+at first audit. Cost on a warm cache is ~28 s per `up`, which is a fair price for never debugging a
+half-downloaded model.
+
+**The warm-up is a CLI command, not a script in `scripts/`.** `scripts/` is outside mypy's `files`
+list and has no test precedent — nothing in it is imported by anything. This code gates the API
+starting, so it is runtime behaviour, and it belongs where the rest of the runtime lives: importable,
+`mypy --strict`-checked, and unit-tested like every other module. `crosscheck warm-models` is also
+genuinely useful by hand — pre-downloading before a demo on a bad connection is exactly the case
+§7.7's demo story cares about. Model names are read from `Settings`, never listed in the module, so
+repointing the config at a different reranker warms the one configured rather than the one that was
+current when the file was written.
+
+**`FASTEMBED_CACHE_PATH` is set explicitly, and it is not cosmetic.** fastembed resolves its cache to
+a directory under the system temp dir when the variable is unset. The three torch models honour
+`HF_HOME` and would have cached correctly while BM25 silently re-downloaded on every container
+start — the kind of bug that never fails, just quietly costs. Confirmed the fetch is real: warming
+BM25 pulls 18 files from the hub.
+
+**`HF_HUB_DISABLE_XET=1`, forced — the hub's Xet transfer deadlocks here.** This was not planned;
+the first cold `docker compose up` found it. The download reached 64 MB and then moved **zero bytes
+in three minutes**. The xet client's own log explained itself: its adaptive concurrency controller
+read the early small-file successes as headroom and climbed one connection at a time — *"success
+ratio 1.000 is above threshold 0.800 ... increased concurrency from 48 to 49"* — and wedged there.
+
+I did not want to guess at this, so I tested it as a controlled comparison: identical image,
+identical volume, cleared partial state, only `HF_HUB_DISABLE_XET` changed. The classic HTTPS path
+pulled **570 MB in 40 seconds (~13 MB/s)** and completed all four models. That is not a marginal
+difference, it is stalled versus working, so the variable is baked into the image rather than left
+to the operator.
+
+I suspect an interaction between ~50 concurrent sockets and WSL2's NAT, and I have not proven that
+— what I have proven is the stall and the fix. A reproducible hang on the *very first run* is the
+worst possible failure for a "one command and it works" quickstart, and it is not a trade worth
+making for a faster transfer that sometimes works. Worth noting the warm-up design paid for itself
+immediately here: this surfaced as a visible, named startup step rather than as an audit that
+silently hung.
+
+**`.dockerignore` is an allow-list, not a deny-list.** Everything is excluded and the four paths the
+build reads are added back. A deny-list rots — every new directory ships to the daemon until someone
+notices — and the working tree carries a 1.5 GB `.venv` and a 134 MB `.mypy_cache`. On this repo it
+matters twice over, because the tree lives on the Windows filesystem via WSL where the daemon reads
+the context one small file at a time. Context goes from ~1.7 GB to under 1 MB.
+
+**Smaller calls.** Non-editable install (`uv sync --no-editable`), so the runtime stage carries only
+the venv and no source tree — verified the six prompt `.md` files, which load through
+`importlib.resources`, are present in the built wheel. Non-root `crosscheck` user at a fixed uid, so
+the volume's ownership is predictable across rebuilds. Healthcheck written in stdlib `urllib` rather
+than installing `curl` into a slim base for a four-line probe. Dependencies installed in a layer
+keyed on `pyproject.toml` + `uv.lock` alone, with `README.md` copied later alongside the source,
+because the README will change constantly in Phase 9 and must not invalidate a 1.3 GB dependency
+layer. `uv` pinned to 0.11.7, the version that produced `uv.lock`.
+
+**Verified, not assumed.** `docker compose build`: exit 0, no warnings, **2.27 GB**, build context
+**1.05 MB** (from ~1.7 GB of working tree). Cold `up` from an empty volume: 4/4 models, exit 0,
+4.2 GB, ~4.5 minutes. Warm `up`: **21.8 seconds** for the whole stack, with the warm-up re-loading
+all four models in 19 s and the API reaching `healthy`. `GET /health` → `200 {"status":"ok",...}`.
+`POST /ingest` with three files → `201`, two staged and the `.yml` skipped, both persisted into the
+`audit_state` volume. Prompts confirmed loading from site-packages inside the container, and `/app`
+confirmed to hold only the venv — no source tree. The one thing I did **not** do is run a paid audit
+through the container; the pipeline is already covered by the CLI runs and the $0.035 HTTP smoke
+test in D47, and the remaining credit is earmarked for the SP 800-63B real-corpus retry.
+
+**What this does not do.** Qdrant is depended on as `service_started`, not `service_healthy` — the
+image ships no shell or HTTP client to write a probe with, and the API does not touch Qdrant until
+an audit runs. No multi-arch build; the image is amd64 as built. The Streamlit UI is not in the
+stack yet; it arrives with Phase 8.
+
+**Provenance.** Mine, after weighing the two shipping options explicitly. I went with the
+recommendation on both the volume-vs-layer call and on moving the warm-up out of `scripts/` into the
+package.
