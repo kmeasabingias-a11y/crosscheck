@@ -3078,3 +3078,80 @@ stack yet; it arrives with Phase 8.
 **Provenance.** Mine, after weighing the two shipping options explicitly. I went with the
 recommendation on both the volume-vs-layer call and on moving the warm-up out of `scripts/` into the
 package.
+
+---
+
+## D49 — The 800-63B real-corpus check found real contradictions, ~15% precision, and a roll-up rule that hides true positives under false ones (2026-08-10)
+
+**Decision.** Ran the §9.4 real-corpus check a second time, on NIST SP 800-63B Rev 3 vs Rev 4
+§5.1.1–5.1.3, after D46 established that SP 800-53 could not contain what the system looks for.
+Added `scripts/build_63b_slice.py` and `benchmarks/realcorpus/nist_63b/`. 283 claims, 771 pairs
+judged, **20 verdicts, $2.5231, complete**. Full analysis in that directory's README.
+
+**The headline: transfer is demonstrated, and precision on real text is poor.** Two genuine
+contradictions out of 13 findings — a hit rate near **15%**, against .852 precision on the
+synthetic benchmark and .765 on the hand-written set. The system found real, non-obvious conflicts
+in a document pair nobody labelled, including the headline 8→15 character password-length change
+and Rev 4's deprecation of an out-of-band method Rev 3 permits. That is the first time this project
+can say transfer happened at all; 800-53 could not answer the question. It is also the first honest
+measurement of how much noise real text produces, and the README reports both.
+
+**The genuinely valuable finding is a defect, not the hit rate.** A real contradiction was rolled up
+*underneath a false positive* and is invisible in the findings list. `_roll_up_near_duplicates`
+collapses findings **by section pair**, keeping the most confident. Rev 3 §5.1.1.2 and Rev 4
+"Password Verifiers" are ~1,200-word sections carrying many independent obligations — length,
+composition, rotation, hashing, salting — so all findings between them collapsed to one, and a
+0.92-confidence false positive about salt lengths outranked the 0.75-confidence real password-length
+change.
+
+The assumption "one contradiction per section pair" held everywhere it had been tested: the
+synthetic generator injects roughly one per section, and the hand-written set is five short
+registers. **Only a real document has long sections carrying many independent requirements.** It is
+compounded by something already measured — the 0.8–0.9 confidence bin is overconfident by +.181
+(synthetic) and +.252 (hand-written), so "keep the most confident" is not a safe tie-break.
+
+*The fix, not applied here.* Roll up on the **claim pair's subject and quantity**, not the section
+pair — or keep section-pair grouping but stop discarding: promote every finding whose subject
+differs from the primary's. The second is smaller and strictly better than today's behaviour. Not
+done in this commit because it changes `report.py`, the HTML renderer's disclosure behaviour, and
+the frozen regression snapshot, and I would rather land the measurement that motivates it first.
+The 800-63B report is committed as-is so the before state is on record.
+
+**Sizing worked, and the ceiling mattered.** Projected $1.88 from the measured 800-53 rate; actual
+$2.52. The entire gap is NLI survival — 15% on 800-53 against **27.2%** here, because a normative
+document is far denser in negations than a template. I raised the ceiling from $2.50 to $3.20
+before dispatch on exactly that reasoning; **at $2.50 the run would have stopped `partial`** and the
+extraction spend would have been wasted. Also corrected a standing error in my own notes: judge cost
+is **linear** in claims, not "quadratic-ish", because `rerank_top_k` caps pairs per claim at 10.
+
+**Predictions were pre-registered before any finding was visible**, because the REAL/REFINEMENT line
+is arguable on a revision pair and deciding it afterwards would be grading my own homework. Two held,
+one held for the wrong reason (the composition-rule pair was dropped by the filter, not declined by
+the judge), and **one was wrong** — I predicted a cluster of terminology false positives from the
+"memorized secret" → "password" rename, expecting the 800-53 `[Withdrawn:]` failure to recur. There
+were none.
+
+**The false positives are eleven different bugs, not one repeated.** Cross-reference renumbering
+(§6.1.2 → §4.1.2) read as `numerical_mismatch`; "20 bits of entropy" against "six decimal digits",
+which is the *same value* (19.93 bits) in a different unit; complementary halves of one rule (≥112 /
+<112 bits) read as a reversal; different actors (authenticator vs verifier) conflated. Nine of the
+eleven pair claims that are simply **not about the same thing**, which makes scope discrimination —
+not judge reasoning — the concrete thing to attack next.
+
+**The corpus bug caught before spending.** The first slice dropped Rev 3's section intros, which NIST
+lays out in `<table><td>` while Rev 4 uses `<p>`. The loss was **asymmetric**, which is the dangerous
+kind: it would have handed the system a corpus where Rev 4 defines terms Rev 3 appears not to, and on
+a set with no gold labels nothing downstream would have caught the manufactured findings. Found by
+reading the generated Markdown; verified by Rev 3 gaining exactly the 403 words of intros while
+Rev 4 stayed byte-identical. Third time on this project that reading a real artefact caught what
+every test passed through (D38, D42).
+
+**The 800-53 caveat still stands and is repeated in the README.** This is still a successive-edition
+pair. What 800-63B changes is *findability*, not *co-activity*: the earlier corpus stated no concrete
+values so nothing was reachable. The co-activity premise rests on §1's own motivating example — both
+versions left in a retrieval corpus because nobody pruned the old one — and that is a defensible
+framing rather than a proof.
+
+**Provenance.** Mine. The corpus choice was already recorded as the next step in D46; the
+pre-registration and the decision to raise the ceiling before dispatch were both mine, and both paid
+off — the first by making prediction 4's failure reportable, the second by keeping the run complete.
