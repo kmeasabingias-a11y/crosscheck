@@ -3155,3 +3155,63 @@ framing rather than a proof.
 **Provenance.** Mine. The corpus choice was already recorded as the next step in D46; the
 pre-registration and the decision to raise the ceiling before dispatch were both mine, and both paid
 off — the first by making prediction 4's failure reportable, the second by keeping the run complete.
+
+---
+
+## D50 — Near-duplicate roll-up keys on subject as well as section pair, and the eval harness stops inheriting the report's display rule (2026-08-10)
+
+**Decision.** Fixed the defect D49 found. `Finding.roll_up_key` is now `(section_a, section_b,
+normalised subject)` instead of the section pair alone, so two findings collapse only when they
+span the same sections *and* share a subject. Separately, `metrics.collapse_to_sections()` was
+added and `score_benchmark` now derives its `grouped` set with it rather than reading
+`report.findings`. 366 tests (9 new).
+
+**Why subject, and why nothing cleverer.** Subject is compared casefolded with whitespace
+collapsed, and that is all — no stemming, no synonyms. The failure being fixed is *silently hiding
+a real contradiction*, so the comparison is deliberately biased towards treating subjects as
+different: a spurious extra card costs a reader seconds, a suppressed finding costs them the
+finding. `test_subject_comparison_does_not_stem` pins that, keeping "verifier" and "verifiers"
+distinct on purpose.
+
+D34 rejected subject as a *grouping* key because it fragments — 342 claims produced 173 subjects,
+62% singletons. That objection does not apply here: this is not grouping, it is a discriminator
+inside an already-narrow bucket (one document pair, one section pair), where fragmenting is the
+desired behaviour rather than the failure mode.
+
+**The part that took the most thought: this is a presentation defect, not a scoring defect.** Gold
+labels are written at section level (D36), so the section pair is the correct *measurement* unit —
+a second finding on a section pair whose gold is already claimed can only score as a duplicate or
+a false positive. Until now the report's display roll-up and the metric's scoring unit were the
+same operation, and `score_benchmark` just read `report.findings`. Splitting a card would therefore
+have silently moved every published number.
+
+So the two concerns are now separately expressed. The report decides what to *show*; `metrics`
+decides what to *score*, and does its own section-level collapse. **Verified rather than asserted:
+re-running `crosscheck eval --suite` after the change reproduces `docs/eval-report.md` byte for
+byte** — same precision, recall, F1, per-type breakdowns, overlap strata, calibration bins and ECE
+on both benchmarks; the only diff is the timestamp. That was the whole risk of this change and it
+is now a checked property, with `test_splitting_a_card_does_not_change_the_scored_set` guarding it.
+
+A pleasant consequence: the committed `synthetic/v1/report.json` and `handwritten/report.json` were
+built by the *old* roll-up and are not being regenerated (their audit results are long gone, and one
+was keyed to a deleted path). They score identically anyway, which is exactly the invariance this
+split buys.
+
+**Effect on the real corpus.** The 800-63B report goes from 13 findings to 15, verdict count
+unchanged at 20. Two of the seven rolled-up findings are promoted, one of them the genuine
+8-to-15-character password change that had been buried under a 0.92-confidence false positive about
+salt lengths. Reported precision on that corpus therefore *rises* from ~15% to ~20% — because what
+the roll-up was suppressing there was a true positive, not noise. `benchmarks/realcorpus/nist_63b/
+report.json` was rebuilt from the saved audit result (free — `build_report` makes no LLM calls) so
+the committed artefact matches the current code rather than preserving a bug for narrative
+convenience; the README describes the original behaviour in prose and quotes.
+
+**What this does not fix.** Two genuinely different contradictions that share a section pair *and*
+a subject are still collapsed. That is a narrower hole than before and I have no evidence it bites,
+but it is not closed. The deeper issue D49 identified is untouched: nine of the eleven false
+positives pair claims that are simply not about the same thing, which is a retrieval-and-judging
+precision problem, not a reporting one.
+
+**Provenance.** Mine, following the recommendation to fix this before Phase 8 and 9 — the demo GIF
+and README both render the findings list, and capturing them beforehand would have put a salt-length
+false positive on screen as the headline with the real password change invisible beneath it.

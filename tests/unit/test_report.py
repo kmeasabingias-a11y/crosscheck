@@ -301,6 +301,68 @@ def test_same_section_findings_roll_up_under_the_most_confident_one() -> None:
     assert report.contradiction_count == 2
 
 
+def _two_findings_one_section_pair(subject_a: str, subject_b: str) -> ContradictionReport:
+    """Build a report with two findings spanning the same section pair, differing in subject."""
+    docs = [
+        _doc("d1", "08_security.pdf", ("s1", "5.1.1.2 Verifiers")),
+        _doc("d2", "09_it.pdf", ("s2", "Password Verifiers")),
+    ]
+    claims = [
+        _claim("c1", "d1", "s1", _QUOTE_A, subject=subject_a),
+        _claim("c2", "d2", "s2", _QUOTE_B, subject=subject_a),
+        _claim("c3", "d1", "s1", _QUOTE_A, subject=subject_b),
+        _claim("c4", "d2", "s2", _QUOTE_B, subject=subject_b),
+    ]
+    pairs = [
+        Pair(pair_id="p_salt", claim_a_id="c1", claim_b_id="c2"),
+        Pair(pair_id="p_length", claim_a_id="c3", claim_b_id="c4"),
+    ]
+    # The salt finding outscores the length one, exactly as on the 800-63B run.
+    verdicts = [_verdict("p_salt", confidence=0.92), _verdict("p_length", confidence=0.75)]
+    return build_report(_result(claims=claims, pairs=pairs, verdicts=verdicts, documents=docs))
+
+
+def test_same_section_different_subject_findings_are_not_rolled_up() -> None:
+    """D50: a long section carries many obligations, so one card per section pair hid real ones.
+
+    Modelled on the 800-63B real-corpus run, where a genuine 8-to-15-character password change
+    (0.75) was hidden beneath a false positive about salt lengths (0.92) because both spanned
+    Rev 3's "Memorized Secret Verifiers" and Rev 4's "Password Verifiers".
+    """
+    report = _two_findings_one_section_pair("secret salt value", "verifiers")
+
+    group = report.groups[0]
+    assert group.finding_count == 2
+    assert [finding.pair_id for finding in group.findings] == ["p_salt", "p_length"]
+    # The real finding is a card of its own, not a footnote on the false positive.
+    assert all(not finding.near_duplicates for finding in group.findings)
+    assert report.contradiction_count == 2
+
+
+def test_same_section_same_subject_findings_still_roll_up() -> None:
+    """The Phase 3 duplicate the roll-up was built for must still collapse."""
+    report = _two_findings_one_section_pair("verifiers", "verifiers")
+
+    group = report.groups[0]
+    assert group.finding_count == 1
+    assert group.findings[0].pair_id == "p_salt"
+    assert [dupe.pair_id for dupe in group.findings[0].near_duplicates] == ["p_length"]
+
+
+def test_subject_comparison_ignores_case_and_whitespace() -> None:
+    """Normalisation is casefold plus whitespace collapsing — deliberately no stemming."""
+    report = _two_findings_one_section_pair("Verifiers", "  verifiers  ")
+
+    assert report.groups[0].finding_count == 1
+
+
+def test_subject_comparison_does_not_stem() -> None:
+    """Singular and plural stay distinct: over-merging would re-hide a real contradiction."""
+    report = _two_findings_one_section_pair("verifier", "verifiers")
+
+    assert report.groups[0].finding_count == 2
+
+
 def test_different_sections_in_the_same_document_pair_are_not_rolled_up() -> None:
     docs = [
         _doc("d1", "06_msa.docx", ("s1", "4. Subcontracting"), ("s3", "7. Governing Law")),

@@ -8,6 +8,7 @@ from crosscheck.evaluation.gold import GoldPair, GoldSet, GoldSide, gold_id
 from crosscheck.evaluation.metrics import (
     Counts,
     calibrate,
+    collapse_to_sections,
     expand,
     lexical_overlap,
     match_findings,
@@ -334,3 +335,49 @@ class TestScoreBenchmark:
         assert metrics.finding_count == 0
         assert metrics.grouped.overall.false_negatives == 1
         assert metrics.grouped.overall.precision == 0.0
+
+
+class TestCollapseToSections:
+    """D50: the scoring unit is the section pair, whatever the report chooses to display."""
+
+    def test_keeps_the_most_confident_finding_per_section_pair(self) -> None:
+        low = _finding(pair_id="p_low", confidence=0.5)
+        high = _finding(pair_id="p_high", confidence=0.9)
+
+        collapsed = collapse_to_sections([low, high])
+
+        assert [f.pair_id for f in collapsed] == ["p_high"]
+
+    def test_distinct_section_pairs_are_both_kept(self) -> None:
+        one = _finding(pair_id="p1", sec_a="s1", sec_b="s2")
+        two = _finding(pair_id="p2", sec_a="s3", sec_b="s4")
+
+        assert len(collapse_to_sections([one, two])) == 2
+
+    def test_section_pair_is_unordered(self) -> None:
+        forward = _finding(pair_id="p1", sec_a="s1", sec_b="s2", confidence=0.9)
+        reverse = _finding(pair_id="p2", sec_a="s2", sec_b="s1", confidence=0.5)
+
+        assert [f.pair_id for f in collapse_to_sections([forward, reverse])] == ["p1"]
+
+    def test_ties_break_on_pair_id_so_the_result_is_deterministic(self) -> None:
+        first = _finding(pair_id="p_aaa", confidence=0.8)
+        second = _finding(pair_id="p_bbb", confidence=0.8)
+
+        assert [f.pair_id for f in collapse_to_sections([second, first])] == ["p_aaa"]
+
+    def test_splitting_a_card_does_not_change_the_scored_set(self) -> None:
+        """The guarantee that lets presentation change without moving a published number.
+
+        Two findings on one section pair score identically whether the report shows them as one
+        card with a near-duplicate (the pre-D50 layout) or as two separate cards (post-D50).
+        """
+        salt = _finding(pair_id="p_salt", confidence=0.92)
+        length = _finding(pair_id="p_length", confidence=0.75)
+
+        one_card = _finding(pair_id="p_salt", confidence=0.92, near_duplicates=[length])
+        as_one_card = expand([one_card])
+        as_two_cards = expand([salt, length])
+
+        assert [f.pair_id for f in collapse_to_sections(as_one_card)] == ["p_salt"]
+        assert [f.pair_id for f in collapse_to_sections(as_two_cards)] == ["p_salt"]

@@ -13,12 +13,15 @@ Two shaping decisions are recorded in ``DECISIONS.md``:
   342 claims produced 173 distinct subjects of which 62% were singletons, so subject grouping
   fragments rather than groups. Every finding is inherently cross-document, so the document
   pair is a total, deterministic key.
-* **Near-duplicate roll-up** — within a document pair, findings that span the *same pair of
-  sections* are collapsed under the highest-confidence one. The Phase 3 smoke run reported one
-  semantic conflict twice because the judge paired a general rule from one document with a
-  scoped exception in the other, and then the reverse; both came from the same two sections.
-  The roll-up is presentation only — the exported JSON keeps every finding, because the
-  evaluation harness scores them individually (§9.2).
+* **Near-duplicate roll-up** — within a document pair, findings that span the same pair of
+  sections *and* share a subject are collapsed under the highest-confidence one. The Phase 3
+  smoke run reported one semantic conflict twice because the judge paired a general rule from
+  one document with a scoped exception in the other, and then the reverse; both came from the
+  same two sections. Subject joined the key after the 800-63B real-corpus run showed that
+  section pair alone over-collapses on real documents, hiding distinct contradictions under
+  whichever scored highest (**D50**). The roll-up is presentation only — the exported JSON keeps
+  every finding, and the evaluation harness re-groups to section level itself rather than
+  inheriting this rule, so scoring is unaffected by how the report chooses to display (§9.2).
 
 Ordering is fully deterministic — groups by filename, findings by descending confidence then
 pair id — so the frozen-fixture regression snapshot in §12 is stable.
@@ -84,9 +87,24 @@ class Finding(CrossCheckModel):
 
     @property
     def section_key(self) -> tuple[str, str]:
-        """The ordered pair of section ids this finding spans — the roll-up key."""
+        """The ordered pair of section ids this finding spans.
+
+        The unit gold labels are written against (D36), and therefore the unit the evaluation
+        harness scores at — but *not* the roll-up key; see :attr:`roll_up_key` and D50.
+        """
         first, second = sorted((self.a.section_id, self.b.section_id))
         return (first, second)
+
+    @property
+    def roll_up_key(self) -> tuple[str, str, str]:
+        """Section pair plus normalised subject — what makes two findings near-duplicates.
+
+        Subject is compared casefolded with runs of whitespace collapsed, and nothing more:
+        no stemming, no synonym matching. A lexical guess that merged two distinct subjects
+        would silently hide a real contradiction, which is the failure this key exists to
+        prevent, so the comparison errs towards treating subjects as different (D50).
+        """
+        return (*self.section_key, " ".join(self.subject.split()).casefold())
 
 
 Finding.model_rebuild()
@@ -305,18 +323,30 @@ def _group_by_document_pair(
 
 
 def _roll_up_near_duplicates(findings: list[Finding]) -> list[Finding]:
-    """Collapse findings spanning the same section pair under the most confident one.
+    """Collapse findings sharing a section pair *and* subject under the most confident one.
+
+    Subject is part of the key, not just the section pair, and the 800-63B real-corpus run is
+    why (D50). A long section legitimately carries many independent obligations — Rev 3's
+    "Memorized Secret Verifiers" runs to ~1,200 words covering length, composition, rotation,
+    hashing, salting and rate limiting — so several *unrelated* contradictions can span the same
+    two sections. Keying on the section pair alone collapsed them all to the most confident one,
+    which hid the genuine 8-to-15-character password change beneath a false positive about salt
+    lengths that happened to score 0.92 against its 0.75.
+
+    That assumption survived this long because nothing had tested it: the synthetic generator
+    injects roughly one contradiction per section and the hand-written set is five short
+    registers. Only a real document has sections dense enough to break it.
 
     The rolled-up findings are attached as ``near_duplicates`` rather than discarded: the JSON
-    export stays complete, and the HTML renderer can show them behind a disclosure.
+    export stays complete, and the HTML renderer shows them behind a disclosure.
     """
     ordered = sorted(findings, key=_finding_order)
-    by_section: dict[tuple[str, str], Finding] = {}
+    by_key: dict[tuple[str, str, str], Finding] = {}
     primaries: list[Finding] = []
     for finding in ordered:
-        primary = by_section.get(finding.section_key)
+        primary = by_key.get(finding.roll_up_key)
         if primary is None:
-            by_section[finding.section_key] = finding
+            by_key[finding.roll_up_key] = finding
             primaries.append(finding)
         else:
             primary.near_duplicates.append(finding)

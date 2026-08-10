@@ -1,7 +1,7 @@
 {
   "audit_id": "8e7a96b48935fada",
   "corpus_path": "/mnt/d/My_project/CrossCheck/benchmarks/realcorpus/nist_63b/corpus",
-  "generated_at": "2026-08-10T12:36:03.464924Z",
+  "generated_at": "2026-08-10T13:06:09.520881Z",
   "document_count": 2,
   "claim_count": 283,
   "candidate_pair_count": 4809,
@@ -336,52 +336,6 @@
               "rerank_score": 0.06995848566293716,
               "nli_contradiction_prob": 0.9998730068584079,
               "near_duplicates": []
-            },
-            {
-              "pair_id": "69e79fcdec3df64d",
-              "contradiction_type": "numerical_mismatch",
-              "confidence": 0.75,
-              "subject": "verifiers",
-              "rationale": "Both claims address requirements for password/memorized secret length set by Verifiers. Claim A requires a minimum of 15 characters for single-factor passwords, while Claim B requires at least 8 characters for subscriber-chosen memorized secrets. These are incompatible minimum thresholds for what appear to be overlapping categories of authentication mechanisms. However, the apparent scope difference (\"single-factor authentication mechanism\" vs. \"subscriber-chosen memorized secrets\") introduces some ambiguity about whether these apply to identical scenarios.",
-              "resolution_hint": "The claims may address different contexts within authentication standards (single-factor vs. general memorized secrets); clarify whether subscriber-chosen memorized secrets encompass single-factor authentication or represent a distinct category.",
-              "a": {
-                "claim_id": "a560905f31410fdd",
-                "doc_id": "6f2638605cbfa962",
-                "filename": "rev3_5_1_1_to_5_1_3.md",
-                "doc_title": "NIST SP 800-63B Rev 3 - Authenticator and Verifier Requirements (5.1.1-5.1.3)",
-                "section_id": "f3de1b410e361795",
-                "section_heading": "5.1.1.2 Memorized Secret Verifiers",
-                "page_span": null,
-                "claim_text": "Verifiers SHALL require subscriber-chosen memorized secrets to be at least 8 characters in length.",
-                "evidence_quote": "Verifiers SHALL require subscriber-chosen memorized secrets to be at least 8 characters in length.",
-                "highlight": "subscriber-chosen memorized secrets to be at least 8 characters in length",
-                "highlight_span": [
-                  24,
-                  97
-                ],
-                "polarity": "positive"
-              },
-              "b": {
-                "claim_id": "6ce48cb0f3cee264",
-                "doc_id": "8f3f1393254f7bac",
-                "filename": "rev4_5_1_1_to_5_1_3.md",
-                "doc_title": "NIST SP 800-63B Rev 4 - Authenticator and Verifier Requirements (Passwords-Out-of-Band)",
-                "section_id": "36d6f54bdcc9a118",
-                "section_heading": "Password Verifiers",
-                "page_span": null,
-                "claim_text": "Verifiers and CSPs shall require passwords that are used as a single-factor authentication mechanism to be a minimum of 15 characters in length.",
-                "evidence_quote": "Verifiers and CSPs SHALL require passwords that are used as a single-factor authentication mechanism to be a minimum of 15 characters in length.",
-                "highlight": "passwords that are used as a single-factor authentication mechanism to be a minimum of 15 characters in length",
-                "highlight_span": [
-                  33,
-                  143
-                ],
-                "polarity": "positive"
-              },
-              "retrieval_score": 0.53333336,
-              "rerank_score": 0.16884589195251465,
-              "nli_contradiction_prob": 0.9988751651884732,
-              "near_duplicates": []
             }
           ]
         },
@@ -567,51 +521,7 @@
           "retrieval_score": 0.4166667,
           "rerank_score": 0.7480089664459229,
           "nli_contradiction_prob": 0.9746592759390689,
-          "near_duplicates": [
-            {
-              "pair_id": "15cb6b0181b606f4",
-              "contradiction_type": "direct_negation",
-              "confidence": 0.85,
-              "subject": "out-of-band authenticator",
-              "rationale": "Claim A asserts that the authenticator shall send the secret to the verifier over the secondary channel, while Claim B asserts that the secret shall be returned via the primary communication channel. These two claims directly contradict each other regarding which channel carries the secret from the authenticator back to the verifier in an out-of-band authentication flow.",
-              "resolution_hint": "These may describe different stages or directions of communication in the protocol; clarification of the complete authentication flow and channel roles would be needed to resolve whether they address the same transfer or different ones.",
-              "a": {
-                "claim_id": "1b58c92c8116804f",
-                "doc_id": "6f2638605cbfa962",
-                "filename": "rev3_5_1_1_to_5_1_3.md",
-                "doc_title": "NIST SP 800-63B Rev 3 - Authenticator and Verifier Requirements (5.1.1-5.1.3)",
-                "section_id": "a9e1d329707164d4",
-                "section_heading": "5.1.3.1 Out-of-Band Authenticators",
-                "page_span": null,
-                "claim_text": "If the out-of-band authenticator sends an approval message over the secondary communication channel, the authenticator SHALL accept transfer of the secret from the primary channel and SHALL send that secret to the verifier over the secondary channel to associate the approval with the authentication transaction.",
-                "evidence_quote": "The authenticator SHALL accept transfer of the secret from the primary channel which it SHALL send to the verifier over the secondary channel to associate the approval with the authentication transaction.",
-                "highlight": "SHALL send that secret to the verifier over the secondary channel",
-                "highlight_span": null,
-                "polarity": "positive"
-              },
-              "b": {
-                "claim_id": "dc8c09d2ed07e79c",
-                "doc_id": "8f3f1393254f7bac",
-                "filename": "rev4_5_1_1_to_5_1_3.md",
-                "doc_title": "NIST SP 800-63B Rev 4 - Authenticator and Verifier Requirements (Passwords-Out-of-Band)",
-                "section_id": "5bd83704d3ed9ecf",
-                "section_heading": "Out-of-Band Verifiers",
-                "page_span": null,
-                "claim_text": "When transferring the secret from the secondary to the primary channel, the verifier shall transmit a random secret to the out-of-band authenticator and wait for the secret to be returned via the primary communication channel.",
-                "evidence_quote": "the verifier MAY signal the device that contains the subscriber’s authenticator to indicate a readiness to authenticate. It SHALL then transmit a random secret to the out-of-band authenticator and wait for the secret to be returned via the primary communication channel.",
-                "highlight": "wait for the secret to be returned via the primary communication channel",
-                "highlight_span": [
-                  197,
-                  269
-                ],
-                "polarity": "positive"
-              },
-              "retrieval_score": 0.6666667,
-              "rerank_score": 0.8457880020141602,
-              "nli_contradiction_prob": 0.9996405905264307,
-              "near_duplicates": []
-            }
-          ]
+          "near_duplicates": []
         },
         {
           "pair_id": "116b49446c3441fe",
@@ -654,6 +564,49 @@
           "retrieval_score": 0.25,
           "rerank_score": 0.0672987699508667,
           "nli_contradiction_prob": 0.9997956323117633,
+          "near_duplicates": []
+        },
+        {
+          "pair_id": "15cb6b0181b606f4",
+          "contradiction_type": "direct_negation",
+          "confidence": 0.85,
+          "subject": "out-of-band authenticator",
+          "rationale": "Claim A asserts that the authenticator shall send the secret to the verifier over the secondary channel, while Claim B asserts that the secret shall be returned via the primary communication channel. These two claims directly contradict each other regarding which channel carries the secret from the authenticator back to the verifier in an out-of-band authentication flow.",
+          "resolution_hint": "These may describe different stages or directions of communication in the protocol; clarification of the complete authentication flow and channel roles would be needed to resolve whether they address the same transfer or different ones.",
+          "a": {
+            "claim_id": "1b58c92c8116804f",
+            "doc_id": "6f2638605cbfa962",
+            "filename": "rev3_5_1_1_to_5_1_3.md",
+            "doc_title": "NIST SP 800-63B Rev 3 - Authenticator and Verifier Requirements (5.1.1-5.1.3)",
+            "section_id": "a9e1d329707164d4",
+            "section_heading": "5.1.3.1 Out-of-Band Authenticators",
+            "page_span": null,
+            "claim_text": "If the out-of-band authenticator sends an approval message over the secondary communication channel, the authenticator SHALL accept transfer of the secret from the primary channel and SHALL send that secret to the verifier over the secondary channel to associate the approval with the authentication transaction.",
+            "evidence_quote": "The authenticator SHALL accept transfer of the secret from the primary channel which it SHALL send to the verifier over the secondary channel to associate the approval with the authentication transaction.",
+            "highlight": "SHALL send that secret to the verifier over the secondary channel",
+            "highlight_span": null,
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "dc8c09d2ed07e79c",
+            "doc_id": "8f3f1393254f7bac",
+            "filename": "rev4_5_1_1_to_5_1_3.md",
+            "doc_title": "NIST SP 800-63B Rev 4 - Authenticator and Verifier Requirements (Passwords-Out-of-Band)",
+            "section_id": "5bd83704d3ed9ecf",
+            "section_heading": "Out-of-Band Verifiers",
+            "page_span": null,
+            "claim_text": "When transferring the secret from the secondary to the primary channel, the verifier shall transmit a random secret to the out-of-band authenticator and wait for the secret to be returned via the primary communication channel.",
+            "evidence_quote": "the verifier MAY signal the device that contains the subscriber’s authenticator to indicate a readiness to authenticate. It SHALL then transmit a random secret to the out-of-band authenticator and wait for the secret to be returned via the primary communication channel.",
+            "highlight": "wait for the secret to be returned via the primary communication channel",
+            "highlight_span": [
+              197,
+              269
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 0.6666667,
+          "rerank_score": 0.8457880020141602,
+          "nli_contradiction_prob": 0.9996405905264307,
           "near_duplicates": []
         },
         {
@@ -885,6 +838,52 @@
           "retrieval_score": 0.14761905,
           "rerank_score": 0.29076147079467773,
           "nli_contradiction_prob": 0.05504957986922816,
+          "near_duplicates": []
+        },
+        {
+          "pair_id": "69e79fcdec3df64d",
+          "contradiction_type": "numerical_mismatch",
+          "confidence": 0.75,
+          "subject": "verifiers",
+          "rationale": "Both claims address requirements for password/memorized secret length set by Verifiers. Claim A requires a minimum of 15 characters for single-factor passwords, while Claim B requires at least 8 characters for subscriber-chosen memorized secrets. These are incompatible minimum thresholds for what appear to be overlapping categories of authentication mechanisms. However, the apparent scope difference (\"single-factor authentication mechanism\" vs. \"subscriber-chosen memorized secrets\") introduces some ambiguity about whether these apply to identical scenarios.",
+          "resolution_hint": "The claims may address different contexts within authentication standards (single-factor vs. general memorized secrets); clarify whether subscriber-chosen memorized secrets encompass single-factor authentication or represent a distinct category.",
+          "a": {
+            "claim_id": "a560905f31410fdd",
+            "doc_id": "6f2638605cbfa962",
+            "filename": "rev3_5_1_1_to_5_1_3.md",
+            "doc_title": "NIST SP 800-63B Rev 3 - Authenticator and Verifier Requirements (5.1.1-5.1.3)",
+            "section_id": "f3de1b410e361795",
+            "section_heading": "5.1.1.2 Memorized Secret Verifiers",
+            "page_span": null,
+            "claim_text": "Verifiers SHALL require subscriber-chosen memorized secrets to be at least 8 characters in length.",
+            "evidence_quote": "Verifiers SHALL require subscriber-chosen memorized secrets to be at least 8 characters in length.",
+            "highlight": "subscriber-chosen memorized secrets to be at least 8 characters in length",
+            "highlight_span": [
+              24,
+              97
+            ],
+            "polarity": "positive"
+          },
+          "b": {
+            "claim_id": "6ce48cb0f3cee264",
+            "doc_id": "8f3f1393254f7bac",
+            "filename": "rev4_5_1_1_to_5_1_3.md",
+            "doc_title": "NIST SP 800-63B Rev 4 - Authenticator and Verifier Requirements (Passwords-Out-of-Band)",
+            "section_id": "36d6f54bdcc9a118",
+            "section_heading": "Password Verifiers",
+            "page_span": null,
+            "claim_text": "Verifiers and CSPs shall require passwords that are used as a single-factor authentication mechanism to be a minimum of 15 characters in length.",
+            "evidence_quote": "Verifiers and CSPs SHALL require passwords that are used as a single-factor authentication mechanism to be a minimum of 15 characters in length.",
+            "highlight": "passwords that are used as a single-factor authentication mechanism to be a minimum of 15 characters in length",
+            "highlight_span": [
+              33,
+              143
+            ],
+            "polarity": "positive"
+          },
+          "retrieval_score": 0.53333336,
+          "rerank_score": 0.16884589195251465,
+          "nli_contradiction_prob": 0.9988751651884732,
           "near_duplicates": []
         },
         {

@@ -9,10 +9,11 @@ types were unreachable before the pipeline started (D46).
 800-63B is the corrective: it is normative, it commits to real numbers, and Rev 4 changed several
 of them.
 
-**Result: 20 verdicts, 13 findings after roll-up, of which 2 are genuine contradictions — a hit
-rate of about 15%.** The system found real conflicts in a real document for the first time. It also
-produced a lot of noise, and the most valuable thing this run produced is not the hit rate but a
-specific architectural defect it exposed, described below.
+**Result: 20 verdicts, 15 findings after roll-up, of which 3 are genuine — covering 2 distinct
+contradictions, a hit rate of about 20%.** The system found real conflicts in a real document for
+the first time. It also produced a lot of noise, and the most valuable thing this run produced is
+not the hit rate but a specific architectural defect it exposed — one that was hiding a real finding
+under a false positive, and that is now fixed (D50).
 
 ## What was run
 
@@ -21,8 +22,8 @@ specific architectural defect it exposed, described below.
 | Corpus | Rev 3 §5.1.1–5.1.3 and the Rev 4 equivalents, 6,321 words, 34 chunks |
 | Claims | 283 (130 Rev 3, 153 Rev 4) |
 | Candidate pairs | 4,809 → 2,830 reranked → **771 past NLI** (27.2%) |
-| Verdicts | **20** → 13 findings after near-duplicate roll-up |
-| Genuine contradictions | **2 distinct issues**, across 3 verdicts |
+| Verdicts | **20** → 15 findings after near-duplicate roll-up |
+| Genuine contradictions | **2 distinct issues**, across 3 findings |
 | Cost | **$2.5231** over 731 LLM calls, complete — not stopped by the ceiling |
 | Judge hallucination rate | **0.0000** |
 
@@ -70,9 +71,15 @@ Four predictions were recorded. Two held, one held for the wrong reason, one was
 Prediction 4 being wrong is worth stating plainly: I expected the 800-53 failure mode
 (`[Withdrawn:]` read as deletion) to recur as renames read as conflicts, and it did not.
 
-## The defect this run exposed
+## The defect this run exposed — since fixed (D50)
 
-**A real contradiction was hidden underneath a false positive, and the report gives no sign of it.**
+**A real contradiction was hidden underneath a false positive, and the report gave no sign of it.**
+
+The `report.json` in this directory is the **rebuilt** one, so the counts above are post-fix: 15
+findings rather than the 13 the run originally displayed, with the real password-length change
+promoted to its own card. Rebuilding costs nothing — `build_report` reads the saved audit result
+and makes no LLM calls — so the artefact matches the current code rather than preserving a bug for
+narrative convenience. What follows is what the original report looked like.
 
 Finding [3]'s headline is a false positive:
 
@@ -104,7 +111,14 @@ seen one. It is also compounded by something already measured: confidence is not
 correctness — the 0.8–0.9 bin is overconfident by +.181 on synthetic and +.252 on hand-written — so
 "keep the most confident" is not a safe tie-break.
 
-Recorded as **D49**, with the fix noted there.
+**The fix (D50):** the roll-up key gained the claim's subject, so findings collapse only when they
+share a section pair *and* a subject. On this run that promotes 2 of the 7 rolled-up findings —
+including the 8→15 change — and leaves genuine duplicates collapsed. The evaluation harness now
+does its own section-level grouping rather than inheriting the report's, because gold labels are
+written at section level (D36) and the scoring unit must not move when the display does. Verified:
+re-scoring both labelled benchmarks after the change reproduces `docs/eval-report.md` byte for byte.
+
+Discovered as **D49**, fixed as **D50**.
 
 ## The two genuine contradictions
 
@@ -121,10 +135,10 @@ confidence 0.92 and 0.85.
 An implementer following Rev 3 is non-compliant with Rev 4. Unambiguously REAL, and found twice
 under two different pairings.
 
-**2. Password length minimums raised.** Finding [4] at 0.92 (6 → 15 characters for randomly-chosen
-secrets) and the buried near-duplicate at 0.75 (8 → 15 for subscriber-chosen). Rev 4 raised the
-single-factor minimum to 15 characters while retaining 8 for passwords used within multi-factor.
-REAL.
+**2. Password length minimums raised.** Two findings, both REAL: one at 0.92 (6 → 15 characters for
+randomly-chosen secrets) and one at 0.75 (8 → 15 for subscriber-chosen) — the latter being the card
+that used to be invisible. Rev 4 raised the single-factor minimum to 15 characters while retaining
+8 for passwords used within multi-factor.
 
 ## The eleven false positives, by cause
 
@@ -153,9 +167,12 @@ attack next.
 conflicts in a real document pair that nobody labelled, including the headline change. 800-53 could
 not answer this question; this run does.
 
-**Precision on real text is poor — about 15%.** That is far below the synthetic benchmark's .852 and
-the hand-written set's .765, and it is the honest number for this corpus. An auditor reading this
-report would spend most of their time dismissing pairs that are not about the same subject.
+**Precision on real text is poor — about 20%** (3 genuine findings of 15). That is far below the
+synthetic benchmark's .852 and the hand-written set's .765, and it is the honest number for this
+corpus. An auditor reading this report would spend most of their time dismissing pairs that are not
+about the same subject. Note the direction the D50 fix moved this: surfacing a hidden *true* finding
+raised the rate from 15% to 20%, because what the roll-up was suppressing here was a real
+contradiction rather than noise.
 
 **Recall is not measured here and no recall claim is made.** There is no gold set — that is the
 point of a real-corpus check — so "20 findings" is not "20 of N". The two pre-registered REAL items

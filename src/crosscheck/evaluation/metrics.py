@@ -4,15 +4,22 @@ This is the module the README's headline numbers come from, so its definitions m
 its code. Three of them are worth stating up front, because each one is a place where a plausible
 alternative would quietly report a different number for the same run.
 
-**1. What counts as one prediction.** The report rolls same-section near-duplicates up under a
-single finding (D34): the extractor may split one section into several claims, so one underlying
-disagreement can surface as several verdicts. Gold labels match at *section* level (D36). Those two
-facts agree — the rolled-up finding and the gold pair are the same unit — so the default
-granularity, ``"grouped"``, scores the findings **as displayed**, one card per section pair. On the
-v1 GDPR benchmark this is exactly one-to-one: 108 findings, zero of them duplicating another's
-gold pair. ``"per_verdict"`` scores every verdict including rolled-up duplicates; it answers a
-different question (how often was the *judge* right) and is reported alongside as a diagnostic,
-never as the headline.
+**1. What counts as one prediction.** Gold labels match at *section* level (D36), so the scoring
+unit is the section pair: the extractor may split one section into several claims, and one
+underlying disagreement can surface as several verdicts. The default granularity, ``"grouped"``,
+therefore collapses findings to one per section pair before scoring. On the v1 GDPR benchmark this
+is exactly one-to-one: 108 findings, zero of them duplicating another's gold pair.
+``"per_verdict"`` scores every verdict including rolled-up duplicates; it answers a different
+question (how often was the *judge* right) and is reported alongside as a diagnostic, never as the
+headline.
+
+This module does that collapsing **itself**, via :func:`collapse_to_sections`, rather than
+inheriting whatever the report happened to display. Until D50 the two were the same operation and
+the distinction did not matter; then the report's roll-up key gained ``subject``, so that a long
+section carrying several unrelated obligations no longer hides real contradictions behind one
+card. Presentation and measurement are separate concerns and are now separately expressed — the
+report is free to split a card without moving a published number, and a future change to gold
+granularity moves the metric without touching the renderer.
 
 **2. Precision and recall must not mix units.** The obvious implementation counts true positives as
 *gold pairs matched* and false positives as *findings that matched nothing* — numerator and
@@ -226,6 +233,31 @@ def expand(findings: Iterable[Finding]) -> list[Finding]:
     return out
 
 
+def collapse_to_sections(findings: Iterable[Finding]) -> list[Finding]:
+    """Keep the most confident finding per section pair — the ``grouped`` scoring unit (D50).
+
+    Gold labels are written at section level (D36), so a second finding on a section pair whose
+    gold is already claimed can only score as a duplicate or a false positive. The scoring unit
+    must therefore be the section pair regardless of how many cards the report chooses to show
+    for it.
+
+    The tie-break is confidence then pair id, matching the report's own ordering, so this
+    reproduces exactly the set the report used to display before its roll-up key gained
+    ``subject`` — which is what keeps published numbers comparable across that change.
+
+    Args:
+        findings: Findings to collapse, in any order. Near-duplicates already rolled up under
+            these are ignored; pass the result of :func:`expand` first to include them.
+
+    Returns:
+        One finding per section pair, ordered most-confident first.
+    """
+    by_section: dict[tuple[str, str], Finding] = {}
+    for finding in sorted(findings, key=lambda f: (-f.confidence, f.pair_id)):
+        by_section.setdefault(finding.section_key, finding)
+    return list(by_section.values())
+
+
 class MatchResult(CrossCheckModel):
     """Outcome of assigning findings to gold pairs."""
 
@@ -423,8 +455,12 @@ def score_benchmark(
         requires alongside them.
     """
     usable = gold.usable_pairs
-    grouped_findings = report.findings
-    verdict_findings = expand(grouped_findings)
+    # Every verdict first, then collapsed to the section-level scoring unit. Going through
+    # `expand` rather than reading `report.findings` directly makes the two granularities
+    # independent of the report's display roll-up: whatever it chooses to promote to a card,
+    # `grouped` is one finding per section pair and `per_verdict` is all of them (D50).
+    verdict_findings = expand(report.findings)
+    grouped_findings = collapse_to_sections(verdict_findings)
 
     judged = report.stats.judge_llm_calls + report.stats.judge_cache_hits
     documents = report.document_count
