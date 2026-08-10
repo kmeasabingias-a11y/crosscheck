@@ -3290,3 +3290,54 @@ a stale report on disk is a stale demo. The demo GIF and the deployment itself a
 
 **Provenance.** Mine, following the recommendation to build one app that is live locally and an
 explorer when deployed, rather than choosing between them.
+
+---
+
+## D52 — Phase 9 documentation: the calibration plot is generated from the eval JSON, and the README leads with the gap rather than the headline (2026-08-10)
+
+**Decision.** Wrote the README, `docs/architecture.md`, `scripts/build_calibration_plot.py` →
+`docs/calibration.svg`, and `LICENSE` (which both the README and `pyproject.toml` referenced and
+which did not exist). Remaining Phase 9 items — the demo GIF, the video, the Community Cloud
+deployment and the `v0.1.0` tag — need a screen and accounts, so they are handed over rather than
+done.
+
+**The plot is generated, not drawn.** `build_calibration_plot.py` reads the newest `eval.json` and
+emits SVG, so the picture cannot drift from the numbers: regenerate after any eval and it either
+tells the truth or fails. Hand-written SVG rather than matplotlib, because the plot is one chart and
+adding a plotting stack to draw it would grow a dependency surface this project has deliberately
+kept small — the same argument §4 makes against LangChain. SVG is also reviewable text in a repo
+where every other artefact is, and a binary PNG diffs as an opaque blob.
+
+**Rendering it caught three defects I would otherwise have shipped.** I installed `cairosvg`
+ephemerally, converted the SVG to PNG and *looked* at it. The `-0.25` gap on the hand-written panel
+was drawn in the overconfident colour despite being *under*confident — a label saying the opposite
+of what happened. Count labels on tall bars were clipped outside the frame, losing `n=82`. And a
+bin holding one verdict rendered identically to one holding eighty-two, which is precisely the
+over-reading a reliability diagram exists to prevent. Fixed by colouring the gap by sign, flipping
+labels inside tall bars, and scaling bar opacity with sample size. Fourth time on this project that
+generating an artefact and reading it has caught what every check passed (D38, D42, D49).
+
+**Two panels, not one.** The finding worth showing is not either curve but that they *agree*: the
+0.80–0.90 band is overconfident on both benchmarks, by +.181 and +.252. That replication is what
+turns a curiosity into a usable rule ("trust ≥0.90, discount 0.80–0.90"), and the demo prints it on
+every card. A single merged panel would bury it.
+
+**The README leads with the real corpus and states the gap early.** §14 names over-claiming from
+synthetic data as the single biggest credibility risk, so the structure follows from that: the
+opening artefact is a genuine conflict found in a published NIST standard, the results table shows
+both benchmarks side by side, and a section titled "The gap between synthetic and real" gives
+three numbers — .745 synthetic, .578 hand-written, ~20% precision on real text — with no recall
+claim on the corpus that has no gold set. The most useful sentence in it is that the headline gap
+is .167 while the low-overlap gap is only .096, so most of what separates the labelled benchmarks
+is surface similarity rather than hand-authorship.
+
+The failed 800-53 attempt is in the README too. A project that reports only the corpus where it
+worked has told half the story.
+
+**The GIF is referenced by an HTML comment, not a broken image tag.** `docs/demo.gif` does not exist
+yet and a README that renders a broken image is worse than one that renders none, so the file is
+marked as a comment and the hero slot is filled by a real quoted finding that works today. It gets
+swapped in after recording.
+
+**Provenance.** Mine. The plot approach followed the recommendation; the decision to lead with the
+real-corpus finding rather than the synthetic F1 is the whole argument of §14 applied to layout.

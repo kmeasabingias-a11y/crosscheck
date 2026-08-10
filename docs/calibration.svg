@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="762" height="410"
+     viewBox="0 0 762 410" role="img"
+     aria-label="Reliability diagrams for the synthetic and hand-written benchmarks">
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .title { font-size: 14px; font-weight: 600; fill: #1f2328; }
+    .sub { font-size: 11px; fill: #6e7781; }
+    .tick-x { font-size: 10px; fill: #6e7781; text-anchor: middle; }
+    .tick-y { font-size: 10px; fill: #6e7781; text-anchor: end; }
+    .axis { font-size: 11px; fill: #6e7781; text-anchor: middle; }
+    .count { font-size: 9px; fill: #6e7781; text-anchor: middle; }
+    .count-in { font-size: 9px; fill: #ffffff; text-anchor: middle; font-weight: 600; }
+    .count-in-dark { font-size: 9px; fill: #1f2328; text-anchor: middle; font-weight: 600; }
+    .gap-over { font-size: 10px; font-weight: 600; fill: #d98324; text-anchor: middle; }
+    .gap-under { font-size: 10px; font-weight: 600; fill: #4c8dd9; text-anchor: middle; }
+    .legend { font-size: 10.5px; fill: #6e7781; }
+    .grid { stroke: #e4e8ec; stroke-width: 1; }
+    .frame { fill: none; stroke: #e4e8ec; stroke-width: 1; }
+    .diagonal { stroke: #8c959f; stroke-width: 1.2; stroke-dasharray: 4 3; }
+    .ylab { font-size: 11px; fill: #6e7781; text-anchor: middle; }
+  </style>
+  <rect width="762" height="410" fill="#ffffff"/>
+  <text x="18" y="191.0" class="ylab"
+        transform="rotate(-90 18 191.0)">Observed accuracy</text>
+    <text x="56" y="24" class="title">synthetic-v1</text>
+  <text x="56" y="40" class="sub">ECE 0.0597 · n=108</text>
+  <line x1="56" y1="336.0" x2="346" y2="336.0" class="grid"/>
+  <text x="46" y="340.0" class="tick-y">0.0</text>
+  <text x="56.0" y="354" class="tick-x">0.0</text>
+  <line x1="56" y1="278.0" x2="346" y2="278.0" class="grid"/>
+  <text x="46" y="282.0" class="tick-y">0.2</text>
+  <text x="114.0" y="354" class="tick-x">0.2</text>
+  <line x1="56" y1="220.0" x2="346" y2="220.0" class="grid"/>
+  <text x="46" y="224.0" class="tick-y">0.4</text>
+  <text x="172.0" y="354" class="tick-x">0.4</text>
+  <line x1="56" y1="162.0" x2="346" y2="162.0" class="grid"/>
+  <text x="46" y="166.0" class="tick-y">0.6</text>
+  <text x="230.0" y="354" class="tick-x">0.6</text>
+  <line x1="56" y1="104.0" x2="346" y2="104.0" class="grid"/>
+  <text x="46" y="108.0" class="tick-y">0.8</text>
+  <text x="288.0" y="354" class="tick-x">0.8</text>
+  <line x1="56" y1="46.0" x2="346" y2="46.0" class="grid"/>
+  <text x="46" y="50.0" class="tick-y">1.0</text>
+  <text x="346.0" y="354" class="tick-x">1.0</text>
+  <line x1="56.0" y1="336.0" x2="346.0" y2="46.0" class="diagonal"/>
+  <rect x="261.0" y="191.0" width="25.0" height="145.0" fill="#d98324" fill-opacity="0.36" rx="2"/>
+  <circle cx="273.5" cy="118.5" r="3.4" fill="#ffffff" stroke="#1f2328" stroke-width="1.4"/>
+  <text x="273.5" y="184.0" class="count">n=2</text>
+  <text x="273.5" y="109.5" class="gap-over">+0.25</text>
+  <rect x="290.0" y="142.7" width="25.0" height="193.3" fill="#d98324" fill-opacity="0.50" rx="2"/>
+  <circle cx="301.8" cy="90.2" r="3.4" fill="#ffffff" stroke="#1f2328" stroke-width="1.4"/>
+  <text x="302.5" y="135.7" class="count">n=24</text>
+  <text x="302.5" y="81.2" class="gap-over">+0.18</text>
+  <rect x="319.0" y="70.8" width="25.0" height="265.2" fill="#4c8dd9" fill-opacity="0.85" rx="2"/>
+  <circle cx="326.9" cy="65.1" r="3.4" fill="#ffffff" stroke="#1f2328" stroke-width="1.4"/>
+  <text x="331.5" y="84.8" class="count-in">n=82</text>
+  <rect x="56" y="46" width="290" height="290" class="frame"/>
+  <text x="201.0" y="376" class="axis">Judge confidence</text>
+  <text x="416" y="24" class="title">handwritten-v1</text>
+  <text x="416" y="40" class="sub">ECE 0.1876 · n=17</text>
+  <line x1="416" y1="336.0" x2="706" y2="336.0" class="grid"/>
+  <text x="406" y="340.0" class="tick-y">0.0</text>
+  <text x="416.0" y="354" class="tick-x">0.0</text>
+  <line x1="416" y1="278.0" x2="706" y2="278.0" class="grid"/>
+  <text x="406" y="282.0" class="tick-y">0.2</text>
+  <text x="474.0" y="354" class="tick-x">0.2</text>
+  <line x1="416" y1="220.0" x2="706" y2="220.0" class="grid"/>
+  <text x="406" y="224.0" class="tick-y">0.4</text>
+  <text x="532.0" y="354" class="tick-x">0.4</text>
+  <line x1="416" y1="162.0" x2="706" y2="162.0" class="grid"/>
+  <text x="406" y="166.0" class="tick-y">0.6</text>
+  <text x="590.0" y="354" class="tick-x">0.6</text>
+  <line x1="416" y1="104.0" x2="706" y2="104.0" class="grid"/>
+  <text x="406" y="108.0" class="tick-y">0.8</text>
+  <text x="648.0" y="354" class="tick-x">0.8</text>
+  <line x1="416" y1="46.0" x2="706" y2="46.0" class="grid"/>
+  <text x="406" y="50.0" class="tick-y">1.0</text>
+  <text x="706.0" y="354" class="tick-x">1.0</text>
+  <line x1="416.0" y1="336.0" x2="706.0" y2="46.0" class="diagonal"/>
+  <rect x="621.0" y="46.0" width="25.0" height="290.0" fill="#4c8dd9" fill-opacity="0.40" rx="2"/>
+  <circle cx="633.5" cy="118.5" r="3.4" fill="#ffffff" stroke="#1f2328" stroke-width="1.4"/>
+  <text x="633.5" y="60.0" class="count-in-dark">n=1</text>
+  <text x="633.5" y="109.5" class="gap-under">-0.25</text>
+  <rect x="650.0" y="162.0" width="25.0" height="174.0" fill="#d98324" fill-opacity="0.85" rx="2"/>
+  <circle cx="663.1" cy="88.9" r="3.4" fill="#ffffff" stroke="#1f2328" stroke-width="1.4"/>
+  <text x="662.5" y="155.0" class="count">n=10</text>
+  <text x="662.5" y="79.9" class="gap-over">+0.25</text>
+  <rect x="679.0" y="46.0" width="25.0" height="290.0" fill="#4c8dd9" fill-opacity="0.65" rx="2"/>
+  <circle cx="685.7" cy="66.3" r="3.4" fill="#ffffff" stroke="#1f2328" stroke-width="1.4"/>
+  <text x="691.5" y="60.0" class="count-in">n=6</text>
+  <rect x="416" y="46" width="290" height="290" class="frame"/>
+  <text x="561.0" y="376" class="axis">Judge confidence</text>
+    <rect x="56" y="383" width="11" height="11" fill="#d98324" fill-opacity="0.82" rx="2"/>
+  <text x="73" y="392" class="legend">overconfident (confidence exceeds accuracy by &gt;.05)</text>
+  <rect x="386" y="383" width="11" height="11" fill="#4c8dd9" fill-opacity="0.82" rx="2"/>
+  <text x="403" y="392" class="legend">calibrated</text>
+  <circle cx="508" cy="388" r="3.4" fill="#ffffff" stroke="#1f2328" stroke-width="1.4"/>
+  <text x="518" y="392" class="legend">stated confidence</text>
+</svg>
