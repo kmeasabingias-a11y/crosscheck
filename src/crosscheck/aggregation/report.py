@@ -33,8 +33,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+from loguru import logger
 from pydantic import Field
 
+from crosscheck.detection.scope_filter import spurious_reason
 from crosscheck.detection.taxonomy import ContradictionType
 from crosscheck.models import Claim, CrossCheckModel, DocumentRef, Pair, Verdict
 from crosscheck.orchestrator import AuditResult, AuditStats, CostSummary
@@ -170,6 +172,7 @@ def build_report(
     result: AuditResult,
     *,
     generated_at: datetime | None = None,
+    scope_filter: bool = True,
 ) -> ContradictionReport:
     """Assemble a :class:`ContradictionReport` from a finished audit.
 
@@ -184,6 +187,9 @@ def build_report(
         result: The audit to report on.
         generated_at: Timestamp to stamp on the report. Left None by default so that a
             regression snapshot over a frozen fixture stays byte-stable.
+        scope_filter: Drop verdicts whose two claims cannot be in conflict — a renumbered
+            cross-reference, or two halves of one threshold rule (§9.4, D55). On by default;
+            pass False to see what the judge alone produced.
 
     Returns:
         The report, ready to export as JSON or render as HTML.
@@ -193,6 +199,7 @@ def build_report(
     documents = result.document_index
 
     findings: list[Finding] = []
+    suppressed = 0
     for verdict in result.contradictions:
         pair = pairs.get(verdict.pair_id)
         if pair is None:
@@ -201,8 +208,16 @@ def build_report(
         claim_b = claims.get(pair.claim_b_id)
         if claim_a is None or claim_b is None:
             continue
+        if scope_filter and verdict.contradiction_type is not None:
+            reason = spurious_reason(verdict.contradiction_type, claim_a.text, claim_b.text)
+            if reason is not None:
+                suppressed += 1
+                logger.debug("scope filter suppressed pair {} ({})", verdict.pair_id, reason)
+                continue
         findings.append(_build_finding(verdict, pair, claim_a, claim_b, documents))
 
+    if suppressed:
+        logger.info("scope filter suppressed {} verdict(s) as non-comparable", suppressed)
     grouped = _group_by_document_pair(findings, documents)
     return ContradictionReport(
         audit_id=result.audit_id,
