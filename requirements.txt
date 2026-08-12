@@ -8,4 +8,14 @@
 # Measured before relying on it: importing the report module and parsing a real report costs
 # 174 MB of RSS, well inside Community Cloud's ~1 GB. The embedder, reranker and NLI models are
 # imported lazily and explorer mode never triggers them, so torch is installed but never resident.
+#
+# torch is pinned to the CPU wheel *here* as well as in `pyproject.toml`, and the duplication is
+# deliberate. The redirect in `[tool.uv.index]` / `[tool.uv.sources]` is uv-only configuration;
+# pip does not read it. Without this pin, pip resolves `torch>=2.2` from PyPI to the CUDA build
+# and pulls ~2.5 GB of `nvidia-*` wheels into a host that allows about 1 GB. The `+cpu` local
+# version exists only on the PyTorch index, so naming it exactly forces the right wheel. Explorer
+# mode never runs a model, but torch must still be *installed*: `crosscheck.ui.client` imports
+# `crosscheck.api.main`, which imports the orchestrator at module level.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.12.1+cpu
 .[ui]

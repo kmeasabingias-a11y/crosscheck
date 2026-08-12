@@ -3341,3 +3341,43 @@ swapped in after recording.
 
 **Provenance.** Mine. The plot approach followed the recommendation; the decision to lead with the
 real-corpus finding rather than the synthetic F1 is the whole argument of §14 applied to layout.
+
+## D53 — The demo GIF ships from the real-corpus explorer view; the narrated video is cut from v0.1.0 (2026-08-12)
+
+**Decision.** Recorded `docs/demo.gif` against the committed NIST SP 800-63B report in the
+Streamlit explorer, cropped it, and swapped it into the README in place of D52's HTML comment.
+Cut the 2–3 minute demo video from v0.1.0 and moved it to "later if possible". The README never
+referenced a video, so nothing had to be removed to avoid a dangling link.
+
+**Why the video goes.** I do not have a usable microphone, and the options were a narrated video
+with poor audio, a silent screencast with caption cards, a phone recording, or synthetic
+narration. Poor audio is worse than no video: it reads as low production care, and that impression
+transfers to the code sitting behind it. The silent captioned screencast was the genuinely good
+alternative and I would still take it if the time appears — captions arguably beat narration for
+the numbers, since seven figures on screen can be paused and read where spoken ones wash past.
+What decided it was redundancy: of the §13 deliverables the video is the one whose job is already
+done twice over. The GIF carries "see it work"; the README and `docs/eval-report.md` carry the
+reasoning, in more detail than 150 seconds of speech could. Cutting it costs a §2 Definition-of-Done
+item and the viewer who would rather watch than read, and I am accepting both knowingly rather than
+letting the item quietly rot as unfinished.
+
+**The capture geometry was the whole problem, and it is not obvious.** The first take was
+2260 × 393 — the full width of the monitor. It looked fine locally and was unusable, because
+GitHub renders README images into a column of about 890 px. At 2260 that is a 0.39× reduction and
+the passage text lands near 6 px tall. The trap is that `ui/streamlit_app.py` sets
+`layout="wide"`, so the page reflows to fill whatever window it is given: sizing the *capture
+region* does nothing on its own, the *browser window* is what sets the layout. Second take at
+1000 × 700 with the window sized to match is a 0.89× reduction and reads cleanly. Rule for next
+time: capture width ≈ 1000 px, and size the window before the region.
+
+**The crop, and what I did not need to fix.** Took 44 px off the top to drop a 3 px window bar and
+Streamlit's own "Deploy" button (y=27–39, clipped mid-word, which reads as an accident), plus a
+1 px left border. Final artefact 999 × 656, 2.03 MB, 55 frames, 13.6 s, looping. I had also
+planned to rewrite the frame delays, having measured them as a uniform 300 ms — that measurement
+was wrong, an artefact of materialising the frame list before reading `info`, and the real timing
+was already 100 ms through the motion with holds of 1.5, 1.7 and 2.9 seconds. Measuring properly
+before changing anything saved a re-encode that would have flattened the pacing that makes the
+GIF readable.
+
+**Provenance.** Mine, on the recommendation to prefer a silent screencast over bad audio; I took
+the further step of deferring the video entirely rather than building the screencast now.
