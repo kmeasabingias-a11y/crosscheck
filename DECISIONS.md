@@ -3381,3 +3381,42 @@ GIF readable.
 
 **Provenance.** Mine, on the recommendation to prefer a silent screencast over bad audio; I took
 the further step of deferring the video entirely rather than building the screencast now.
+
+## D54 — The demo is deployed in explorer mode at a chosen subdomain, and the repo went public only after its history was checked (2026-08-12)
+
+**Decision.** Deployed `ui/streamlit_app.py` to Streamlit Community Cloud at
+<https://crosscheck-demo.streamlit.app>, made the GitHub repository public, and linked the demo
+from the README twice — once under the GIF, once at the head of the quickstart.
+
+**The subdomain is chosen, not defaulted.** Community Cloud offered
+`crosscheck-o9uccez2b3n5rxwgwaqge7.streamlit.app`. A hash-string host reads like something
+temporary, and this URL is about to be embedded in the README and frozen into the `v0.1.0` tag.
+The subdomain can be changed later in the app settings, but every link shared by then breaks, so
+it is effectively a one-shot choice and worth spending a minute on. `crosscheck-demo` rather than
+bare `crosscheck`, which is a common enough word to be taken.
+
+**The README states the limitation in the same breath as the link.** The hosted app runs in
+explorer mode — it reads reports committed to the repo and cannot run an audit, because the
+pipeline needs 4.2 GB of models and a vector store that no free host will provide (D51). A visitor
+arriving expecting an upload box and finding a report picker would read that as broken software
+rather than a stated design choice, and the fix costs one sentence. Saying it next to the link is
+the point; saying it further down the page would be saying it too late.
+
+**Public only after checking the history, not just the tree.** Making a repository public exposes
+every commit ever made, and anything leaked that way can be fetched and indexed before it can be
+removed — so the check has to happen first, and it has to cover history. Verified: `.env` has been
+gitignored since the start and was never committed, the only secret-named tracked file is
+`.env.example` with empty values, `git log -S` across all commits matched zero occurrences of
+`sk-ant-`, `sk-proj-` or `AKIA`, and the audit caches and Qdrant storage are ignored. Two things
+are published knowingly — my email in `[project].authors`, which every commit carries anyway, and
+the absolute `/mnt/d/...` paths recorded in `docs/eval-report.md`, which I left alone because they
+are the run's own provenance and rewriting them would desync the report from the JSON it was
+generated from.
+
+**This deploy only worked because of D53.** Without the pip-readable CPU-torch pin the build would
+have pulled the CUDA wheels and failed on install. Worth noting the sequencing: the fix had to be
+pushed *before* the app was created, because Cloud builds from GitHub and never sees the working
+tree.
+
+**Provenance.** Mine. The pre-publication history check followed the recommendation to verify
+before flipping visibility rather than after.

@@ -11,6 +11,10 @@ the whole corpus and reports every pair of statements that conflict.
 
 ![CrossCheck finding a real conflict in NIST SP 800-63B](docs/demo.gif)
 
+**[Try it live →](https://crosscheck-demo.streamlit.app)** — the hosted demo explores the NIST and
+benchmark reports committed to this repo. Running a fresh audit needs the models locally; see the
+[quickstart](#quickstart).
+
 ## It found this in a published NIST standard
 
 Run against **SP 800-63B Rev 3 vs Rev 4** — a real, public corpus nobody had labelled:
@@ -30,6 +34,10 @@ rising from **8 to 15 characters**. Two genuine contradictions out of 15 finding
 reading of that ratio is [below](#the-gap-between-synthetic-and-real).
 
 ## Quickstart
+
+The [hosted demo](https://crosscheck-demo.streamlit.app) needs no setup, but it only *reads* reports
+committed here — the pipeline wants 4.2 GB of models and a vector store, which no free host will run.
+To audit a corpus of your own:
 
 ```bash
 git clone https://github.com/kmeasabingias-a11y/crosscheck && cd crosscheck
