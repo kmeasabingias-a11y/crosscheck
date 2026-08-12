@@ -3525,3 +3525,159 @@ believed at release. It will be right in `v0.2.0`.
 **Provenance.** Mine, on the recommendation to recompute from the artefact before touching any
 published claim. The discrepancy was found while building the labelled set for D55 — the scope-filter
 work needed agreed labels, and re-deriving them from `report.json` is what exposed the arithmetic.
+
+## D57 — Recall loss is split between retrieval and the judge, not concentrated in either; extraction is not a factor (2026-08-13)
+
+**Decision.** Attributed every missed gold pair on both labelled benchmarks to the pipeline stage
+that lost it, using audit results already on disk — no LLM call, no re-run, no spend. Recorded the
+result here rather than adding a metric to the harness, because it is a diagnosis, not something
+that needs recomputing every eval. The scripts live in `Crosscheck_Runs/recall_funnel.py` and
+`judge_misses.py` alongside the other offline diagnostics.
+
+**Why look.** Recall is the weaker half on both benchmarks — .662 synthetic against .852
+precision, .464 hand-written against .765 — and nothing had ever established *where* it goes.
+Four stages can lose a pair (extraction, retrieval/rerank, the NLI filter, the judge) and each
+implies a different fix, so guessing which to work on was guessing.
+
+**The first attribution was wrong, and the way it was wrong is the point.** Bucketing on the gold
+pair's *sections* — which is how the harness matches (D36) — said the judge accounted for 87% of
+the hand-written loss and 66% of the synthetic. Reading the judge's own rationales on those
+"failures" showed the mistake immediately: for the gold pair "your data never leaves the EU"
+against "backup snapshots replicate nightly to us-east-2", the pair actually judged from those two
+sections was "new vendor additions are published to the trust centre" against "tenant objects are
+written to the regional bucket". The judge was *correct* to say no. A pair from the right sections
+is not the right pair, and section-level bucketing had dressed a retrieval failure as a judge
+failure. Re-attributing at claim level, by lexical correspondence between the judged claims and the
+gold texts, splits them.
+
+**The result, at a 0.30 claim-match cut.**
+
+| | hand-written (28) | synthetic (139) |
+|---|---|---|
+| found | 13 (46.4%) | 88 (63.3%) |
+| found by luck — right sections, wrong claims | 0 | 4 (2.9%) |
+| extraction never made the claim | **0** | **0** |
+| no pair from those sections reached the judge | 2 (7.1%) | 16 (11.5%) |
+| right sections, but the right two claims never met | 6 (21.4%) | 5 (3.6%) |
+| the right claims met and the judge said no | 7 (25.0%) | 26 (18.7%) |
+
+**What is robust, and what is not.** Swept the claim-match cut from 0.10 to 0.50. Three findings
+hold at every threshold: **extraction loses nothing** (zero in every configuration, on both sets —
+the decontextualization work is doing its job); **`not_retrieved` is completely stable** at 2 and
+16, so 7.1% and 11.5% of gold pairs never had *any* pair from those sections reach the judge; and
+**both retrieval-side and judge-side losses are material** — neither ever falls below a fifth of
+the total. What is *not* robust is the exact split between "wrong claims paired" and "judge
+rejected": on the hand-written set it moves from 5/10 to 10/5 across the sweep, so any claim that
+one dominates would be an artefact of a threshold I chose. Stating the split as roughly even is
+the most the data supports.
+
+**A caveat this puts a number on for the first time.** D36 called section-level matching
+"deliberately coarse and generous to the system". On the synthetic set, 4 of the 92 scored true
+positives — about 4% — match on sections while the claim texts do not correspond, so they are
+credited without the system having found the labelled contradiction. Zero on the hand-written set.
+The published figures stand as they are: the threshold-sensitivity above means "4" is itself
+uncertain (1 to 9 across the sweep), and restating a headline number on a figure that soft would be
+worse than reporting the caveat. This is now the honest bound on how generous the matching is.
+
+**What this changes about what to do next.** `retrieval_top_k` has never been swept and now has a
+concrete target: the 16 and 2 pairs that reached the judge from neither of their sections. That is
+a bounded, free experiment against `nli_scores.json`. But it cannot be the whole answer, because
+even a perfect retriever leaves the judge-side losses untouched — and the judge here is Haiku,
+chosen for cost. Re-judging only the missed pairs with Sonnet would cost cents and would separate
+"the prompt is wrong" from "the model is not strong enough", which is the question underneath both
+the recall gap and the `scope_jurisdiction` weakness (0/3 hand-written, and its misses split across
+both retrieval and judge causes).
+
+**Provenance.** Mine. Reading the judge's rationales before trusting the first bucketing, and
+sweeping the threshold before reporting a split, both followed the recommendation — and the first
+saved a conclusion that was exactly backwards.
+
+## D58 — `retrieval_top_k` stays at 25: deeper retrieval buys candidates the reranker then discards (2026-08-13)
+
+**Decision.** Swept `retrieval_top_k` — never swept before, only `rerank_top_k` — and left it at
+**25**. Deeper retrieval does not deliver more gold pairs to the judge, and at K=100 it delivers
+fewer. Scripts in `Crosscheck_Runs/topk_sweep.py` and `topk_survival.py`. No API spend: embedder,
+reranker and NLI are all local.
+
+**The proxy said yes.** Measuring the rank at which the correct counterpart appears, the correct
+claim is *always* retrievable — never absent at any depth on either benchmark. Cumulative recall of
+the candidate pool, synthetic / hand-written: K=10 89.9%/60.7%, **K=25 (shipped) 93.5%/82.1%**,
+K=50 96.4%/96.4%, K=100 97.8%/100%. On the hand-written set that is a 14-point gain from 25 to 50,
+which looked like an easy win — especially as judge spend barely moves with K.
+
+**End to end it converts to nothing.** Driving the real `generate_candidate_pairs` and
+`rerank_pairs`, the count of gold pairs whose correct claim pair survives to the judge goes
+20/28 → 21/28 → 20/28 across K = 25, 50, 100, and NLI survival goes 15 → 15 → **14**. The candidate
+pool nearly quadruples from 2,841 to 9,622 and the outcome gets slightly worse.
+
+**Why: the rerank budget is fixed and global.** `orchestrator.py` passes
+`rerank_top_k * len(claims)` and `rerank_pairs` truncates the *global* sorted list — 1,730 slots
+for this corpus, whatever K is. Deeper retrieval does not widen the funnel's throat, it just adds
+competitors for the same slots, so a gold pair that used to make the cut gets displaced by a
+higher-scoring distractor. The knob worth turning, if any, is `rerank_top_k`; `retrieval_top_k`
+above ~25 is nearly inert and eventually harmful.
+
+**A modelling error worth recording, because it nearly published a wrong number.** My first
+survival probe modelled reranking as "keep the top 10 neighbours per claim" and reported 57.1%
+survival at K=25. The pipeline does not do that, and the real behaviour is far more permissive.
+The error surfaced only because the probe's K=25 figure would not reconcile with the actual run's
+count from D57 — 11/28 against 20/28. Rewriting it to call the real functions reproduced 20/28
+exactly, which is what makes the K comparison above trustworthy. **Reconciling a simulation against
+the artefact of a real run, before reading anything off it, is the check that caught this**; the
+same pattern caught the section-level attribution error in D57 hours earlier. Both times the fix
+was reading the implementation instead of my model of it.
+
+**Caveat on the absolute NLI figures.** Simulated NLI survival at K=25 is 15/28 where the real run
+had 20/28 correct pairs reach the judge. The rerank stage reconciles exactly, so the divergence is
+in re-scoring NLI outside the pipeline's batching. The *relative* comparison across K is the
+reliable part and is what this decision rests on; the absolute NLI numbers are approximate.
+
+**What this leaves.** Retrieval is not the recall bottleneck and now has a measurement saying so.
+Per D57's funnel the judge remains the largest single loss — 26 of 47 misses on synthetic, 7 of 15
+on hand-written — and the judge is Haiku, chosen for cost. Re-judging only the missed pairs with
+Sonnet would cost cents and would separate "the prompt is wrong" from "the model is not strong
+enough". That is the next experiment.
+
+**Provenance.** Mine. Insisting on an end-to-end measurement rather than shipping on the candidate-
+pool proxy followed the recommendation, and it turned a 14-point apparent win into a negative
+result.
+
+## D59 — The judge's recall ceiling is model capacity, not the prompt: Sonnet recovers 64% of Haiku's rejections (2026-08-13)
+
+**Decision.** Re-judged, with Sonnet 4.6, the gold pairs whose correct claim pair reached the judge
+and was rejected by Haiku. **14 of 22 flipped to contradiction** — 12 of 17 on synthetic, 2 of 5 on
+hand-written. Spend **$0.2036** over 22 calls. Recorded the finding; did *not* change the default
+judge model, because this measures recall only.
+
+**The question it settles.** D57 put the judge as the largest single recall loss on both
+benchmarks, and D58 ruled retrieval out as the cause. That left two explanations: the prompt frames
+the task badly, or Haiku — chosen for cost — is not strong enough. Re-judging only the rejected
+pairs separates them, because the prompt, the claims and the pair are all held constant and only
+the model changes. A 64% flip rate says the ceiling is **model capacity**. The prompt is not what
+is losing these.
+
+**It lands on the known weak type.** Four of the fourteen flips are `scope_jurisdiction`, including
+one of the two hand-written flips — the type that scores 0/3 hand-written and .708 synthetic, and
+which has been the standing weak spot since the first eval report. Sonnet also recovered a
+`temporal_conflict` and four `obligation_reversal`s, the other soft types.
+
+**What this does NOT establish, and the reason the default is unchanged.** It re-judged only pairs
+already known to be gold. It says nothing about what Sonnet does with the ~500 non-gold pairs Haiku
+also rejected, and creating false positives there would cost precision — currently .765
+hand-written and .852 synthetic, the system's stronger half. Quoting a projected recall from this
+would be exactly the candidate-pool-proxy error of D58 in a new costume. The honest statement is
+"Sonnet recovers 64% of Haiku's misses on gold pairs", not "recall would be .75".
+
+**The cost side is a real trade.** Measured $0.00925 per pair against Haiku's $0.0027 — **3.4×**.
+The 800-63B real-corpus run would go from $2.52 to roughly $8.60, and cost per 100 documents from
+$9.22 to about $31. That is a genuine product decision, not a free upgrade, and it wants the
+precision number before anyone makes it.
+
+**The experiment that would settle a switch.** Re-judge the hand-written run's 25 Haiku-positive
+verdicts plus a sample of ~100 of its rejected non-gold pairs — about **$1.16** — giving precision
+and recall on the same corpus under both models. A full A/B on the hand-written run's 528 judged
+pairs would be ~$4.88; on synthetic's 1,103, ~$10.20, which is most of the remaining credit and not
+worth it for a portfolio project.
+
+**Provenance.** Mine. Holding everything but the model constant, and refusing to project an
+end-to-end number from a recall-only measurement, both followed the recommendation.
