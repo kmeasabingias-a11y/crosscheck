@@ -30,8 +30,9 @@ Run against **SP 800-63B Rev 3 vs Rev 4** — a real, public corpus nobody had l
 > `obligation_reversal` · confidence 0.92
 
 An implementer following Rev 3 is non-compliant with Rev 4. It also caught the password minimum
-rising from **8 to 15 characters**. Two genuine contradictions out of 15 findings — and the honest
-reading of that ratio is [below](#the-gap-between-synthetic-and-real).
+rising from **8 to 15 characters**. Two genuine contradictions, reported as four of fifteen
+findings — and the honest reading of that ratio is
+[below](#the-gap-between-synthetic-and-real).
 
 ## Quickstart
 
@@ -109,7 +110,7 @@ This is the part most projects leave out, and the reason the evaluation exists.
 |---|---|
 | Synthetic benchmark (injected) | **.745** |
 | Hand-written set (realistic phrasing) | **.578** |
-| Real corpus, NIST 800-63B | **~20% precision**, no recall claim |
+| Real corpus, NIST 800-63B | **26.7% precision** (33.3% with the scope filter), no recall claim |
 
 Three honest statements about those numbers:
 
@@ -118,11 +119,15 @@ labelled benchmarks is *surface similarity*, not hand-authorship — the hand-wr
 lexical overlap is 0.072 against the synthetic set's 0.310. Control for overlap and they nearly
 agree. Recall carries the loss (−.198); precision mostly holds (−.087).
 
-**On real text, precision drops hard.** Two genuine contradictions out of 15 findings on 800-63B.
-Nine of the eleven false positives paired claims that simply were not about the same thing —
-different actors, different quantities, complementary halves of one rule, a cross-reference
-renumbering read as a numerical mismatch, and "20 bits of entropy" against "six decimal digits",
-which is *the same value*. Scope discrimination, not judge reasoning, is the weakest link.
+**On real text, precision drops hard.** Two genuine contradictions on 800-63B, reported as four
+findings out of fifteen — **26.7%**. Nine of the eleven false positives paired claims that simply
+were not about the same thing — different actors, different quantities, complementary halves of one
+rule, a cross-reference renumbering read as a numerical mismatch, and "20 bits of entropy" against
+"six decimal digits", which is *the same value*. Scope discrimination, not judge reasoning, is the
+weakest link. A [scope filter](src/crosscheck/detection/scope_filter.py) now removes three of those
+eleven — renumbered cross-references and complementary threshold halves — taking the same verdicts
+to **33.3%** at no measured cost to recall on either labelled benchmark. The committed report
+predates it; the six actor-and-entity confusions remain open.
 
 **No recall claim is made on the real corpus**, because there is no gold set — that is the point of
 a real-corpus check. "20 findings" is not "20 of N".

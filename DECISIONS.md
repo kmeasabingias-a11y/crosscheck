@@ -3420,3 +3420,108 @@ tree.
 
 **Provenance.** Mine. The pre-publication history check followed the recommendation to verify
 before flipping visibility rather than after.
+
+## D55 — Two scope rules ship because they were measured; the one I was surest of was the one that failed (2026-08-12)
+
+**Decision.** Added `src/crosscheck/detection/scope_filter.py` and wired it into `build_report`
+behind a `scope_filter=True` keyword. It suppresses verdicts whose two claims cannot be in
+conflict: a renumbered cross-reference, and two halves of one threshold rule. Real-corpus
+precision on NIST SP 800-63B goes from 26.7% to 33.3% with **zero** measured recall cost on either
+labelled benchmark.
+
+**Why this and not judge tuning.** The 800-63B breakdown grouped eleven false positives by cause
+rather than listing them, and nine of the eleven paired claims that were not about the same thing.
+Reading the rationales, the judge was mostly reasoning correctly given the question it was asked —
+and the question already contained the error, because the framing asserts the two claims are
+comparable before the judge sees them. Asking a better question is cheaper than asking the judge
+to be smarter, and it can be done with no model and no token.
+
+**The result that changed my mind.** I prototyped four rules and scored all four offline before
+wiring in any of them — against the 800-63B findings for precision and against both benchmarks for
+cost, using only reports already committed, so the experiment was free.
+
+| rule | 63B precision | synthetic F1 | hand-written F1 | TP lost |
+|---|---|---|---|---|
+| baseline | 26.7% | .745 | .578 | — |
+| `non_normative` | 30.8% | .733 | **.182** | **13** |
+| `section_ref` | 30.8% | .745 | .578 | 0 |
+| `complementary` | 28.6% | .745 | .578 | 0 |
+| **both shipped** | **33.3%** | **.745** | **.578** | **0** |
+
+`non_normative` — "neither claim contains SHALL/MUST/SHOULD, so this is narrative prose" — was the
+rule I was most confident in. It reads as obviously correct, it improved precision on 800-63B, and
+it dropped twelve of seventeen hand-written findings, taking that F1 from .578 to .182. The
+hand-written set is company registers in ordinary English ("employees receive 20 days"), so the
+rule was not detecting non-requirements at all: it was detecting **NIST's house style**, the only
+corpus I had it in front of. The synthetic benchmark barely moved (.745 → .733), so that set would
+not have caught it either — it took the hand-written set, which exists precisely to be written
+differently, to expose it. That is the clearest payoff the hand-written set has produced and it
+justifies the whole cost of authoring it. A fourth rule, converting "six decimal digits" to "19.93
+bits", was dropped unscored as a rule derived from one example — the same disease, caught earlier.
+
+**Post-judge, not pre-judge, and that is a deliberate cost decision.** Both rules need only claim
+text, so they could run before the judge and save the spend of judging non-comparable pairs — three
+calls on this run, a few cents. I left them after the judge because that is the position I actually
+measured, and because `AuditResult` stays complete: every verdict is still recorded and the eval
+harness still scores all of them, so the filter is a *view* decision in the same spirit as the
+near-duplicate roll-up (D50). Moving it earlier is a genuine optimisation with a different thing to
+prove, and it is written down as future work rather than smuggled in here.
+
+**Suppression is logged, never silent.** `spurious_reason` returns the rule's name rather than a
+bool, `build_report` logs the count at INFO and each pair at DEBUG, and `scope_filter=False` turns
+the whole thing off. Without that escape hatch there is no way to ask what the judge alone produced,
+which is the only way to tell later whether the filter is buying precision or eating findings.
+
+**Nothing published had to change.** Both benchmark scorecards reproduce identically to three
+decimal places, so `docs/eval-report.md` and the README results table stand as they are. 419 tests
+green, four gates clean.
+
+**Still open, and stated in the module.** The dominant cause — different actors and different
+entities, six of the eleven — is untouched, because knowing that an authenticator and a verifier
+are different parties is not a regex. That wants the claim's `subject` used as a retrieval
+constraint or a cheap entailment check, and it is the next thing to attack.
+
+**Provenance.** Mine. Shipping only measured rules, and scoring each one against the hand-written
+set before believing it, followed the recommendation.
+
+## D56 — Real-corpus precision was published as ~20% and is 26.7%; the correction goes in a new entry rather than over the old ones (2026-08-12)
+
+**Decision.** Corrected the 800-63B precision figure from "3 genuine findings, about 20%" to
+**4 genuine findings of 15, 26.7%**, in `README.md`, `benchmarks/realcorpus/nist_63b/README.md`
+and this log. Left the wording of **D49** and **D50** untouched and recorded the correction here
+instead. Completed the false-positive cause table, which had only ever accounted for ten of eleven.
+
+**What was actually wrong.** Nothing about the run — only the count. D49 described the run as it
+stood: 13 findings, 2 genuine, ~15%. D50 then surfaced the buried 8→15 password-length finding,
+taking the run to 15 findings and 4 genuine. The prose was updated (the 63B README describes the
+password issue as "two findings, both REAL"), but the summary line above it and the percentage were
+not. From then on the arithmetic never closed: 3 genuine plus 11 false positives is 14, and the run
+has 15 findings. That inconsistency sat in the file for two days and was propagated into the
+top-level README and the `v0.1.0` tag annotation before anyone recomputed it.
+
+**Why it survived.** Every number here was carried by hand from a manual review. The eval harness
+never touched this corpus — there is no gold set, which is the whole point of a real-corpus check —
+so no test, no metric and no CI step could have caught a stale hand-count. That is the structural
+lesson: figures that live outside the harness need re-derivation from the artefact, not
+transcription. Recomputing it took one pass over `report.json` and would have taken the same one
+pass at any point in those two days.
+
+**Why the old entries stand.** `DECISIONS.md` is a log of what I decided and believed at the time,
+not a wiki of current truth. Editing D49 to say 26.7% would erase the fact that I believed 15%, then
+20%, and would make the reasoning in those entries — which is *about* those numbers — incoherent.
+A dated correction that names what it corrects is both more honest and more useful.
+
+**The number now has two forms, and both are stated.** The committed `report.json` is the run
+exactly as it happened, with no scope filter: 4 of 15, **26.7%**. The scope filter added the same
+day (D55) suppresses three of the false positives on those same verdicts: 4 of 12, **33.3%**. The
+README gives 26.7% as the measured figure and names 33.3% as what the current code produces, rather
+than quietly publishing the better one against an artefact that cannot produce it.
+
+**One place stays stale and I am not chasing it.** The `v0.1.0` tag annotation says "real-corpus
+precision ~20%". Moving a published tag to fix an annotation is worse than the stale annotation:
+anyone who has already fetched it gets a silent divergence, and the tag is a snapshot of what was
+believed at release. It will be right in `v0.2.0`.
+
+**Provenance.** Mine, on the recommendation to recompute from the artefact before touching any
+published claim. The discrepancy was found while building the labelled set for D55 — the scope-filter
+work needed agreed labels, and re-deriving them from `report.json` is what exposed the arithmetic.

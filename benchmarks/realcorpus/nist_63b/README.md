@@ -9,8 +9,8 @@ types were unreachable before the pipeline started (D46).
 800-63B is the corrective: it is normative, it commits to real numbers, and Rev 4 changed several
 of them.
 
-**Result: 20 verdicts, 15 findings after roll-up, of which 3 are genuine — covering 2 distinct
-contradictions, a hit rate of about 20%.** The system found real conflicts in a real document for
+**Result: 20 verdicts, 15 findings after roll-up, of which 4 are genuine — covering 2 distinct
+contradictions, a hit rate of 26.7%.** The system found real conflicts in a real document for
 the first time. It also produced a lot of noise, and the most valuable thing this run produced is
 not the hit rate but a specific architectural defect it exposed — one that was hiding a real finding
 under a false positive, and that is now fixed (D50).
@@ -23,7 +23,7 @@ under a false positive, and that is now fixed (D50).
 | Claims | 283 (130 Rev 3, 153 Rev 4) |
 | Candidate pairs | 4,809 → 2,830 reranked → **771 past NLI** (27.2%) |
 | Verdicts | **20** → 15 findings after near-duplicate roll-up |
-| Genuine contradictions | **2 distinct issues**, across 3 findings |
+| Genuine contradictions | **2 distinct issues**, across 4 findings |
 | Cost | **$2.5231** over 731 LLM calls, complete — not stopped by the ceiling |
 | Judge hallucination rate | **0.0000** |
 
@@ -155,11 +155,16 @@ failure repeated:
 | **Different entities of similar name** | [8] | Activation secrets vs transfer secrets. The judge's own rationale notes the distinction and reports the pair anyway |
 | **Wrong sentence matched** | [6] | Rev 3 contains the identical "SHOULD NOT display the authentication secret while it is locked" sentence; the judge paired Rev 4's version against a *different* Rev 3 sentence |
 | **Narrative description, not requirement** | [1], [12] | Prose describing two different (both valid) out-of-band flows |
+| **Same mechanism, opposite direction** | [14] | Rev 3's "the authenticator SHALL accept transfer of the secret from the primary channel" against Rev 4's "the verifier shall transmit a random secret to the out-of-band authenticator" — the two ends of one exchange, not two rules in conflict |
 
 The dominant pattern is **scope**: nine of the eleven pair two claims that are simply not about the
 same thing — different actors, different entities, different quantities, different halves of a rule.
 That is a retrieval-and-judging precision problem on real text, and it is the concrete thing to
 attack next.
+
+> **Table completed 2026-08-12.** This originally listed causes for ten of the eleven; the last row
+> was added when the scope filter's own output was checked against it. Two rows here are now
+> handled automatically — cross-reference renumbering and complementary halves — see D55.
 
 ## What this establishes, and what it does not
 
@@ -167,12 +172,23 @@ attack next.
 conflicts in a real document pair that nobody labelled, including the headline change. 800-53 could
 not answer this question; this run does.
 
-**Precision on real text is poor — about 20%** (3 genuine findings of 15). That is far below the
+**Precision on real text is poor — 26.7%** (4 genuine findings of 15). That is far below the
 synthetic benchmark's .852 and the hand-written set's .765, and it is the honest number for this
 corpus. An auditor reading this report would spend most of their time dismissing pairs that are not
 about the same subject. Note the direction the D50 fix moved this: surfacing a hidden *true* finding
-raised the rate from 15% to 20%, because what the roll-up was suppressing here was a real
+raised the rate from 15.4% to 26.7%, because what the roll-up was suppressing here was a real
 contradiction rather than noise.
+
+**Corrected 2026-08-12 (D56).** This section previously said "3 genuine, about 20%". That count was
+written before D50 surfaced the buried 8→15 password finding, and it was never updated when the
+prose below it was: the run has 4 genuine findings and 11 false positives, which is the only
+reading that sums to 15. The 20% figure was propagated to the top-level README and the `v0.1.0`
+tag annotation before it was caught.
+
+**The scope filter (D55) takes this to 33.3%** without re-running anything. It suppresses findings
+[5], [12] and [15] — two renumbered cross-references and one pair of complementary threshold halves
+— leaving 4 genuine of 12. The `report.json` committed here predates the filter and is the run
+exactly as it happened; re-running the audit with the current code would produce the shorter list.
 
 **Recall is not measured here and no recall claim is made.** There is no gold set — that is the
 point of a real-corpus check — so "20 findings" is not "20 of N". The two pre-registered REAL items

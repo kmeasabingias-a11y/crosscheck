@@ -35,8 +35,8 @@ BUNDLED_REPORTS: tuple[tuple[str, str, str], ...] = (
     (
         "NIST SP 800-63B — Rev 3 vs Rev 4",
         "benchmarks/realcorpus/nist_63b/report.json",
-        "Real corpus, no gold labels. Two genuine requirement changes among 15 findings — "
-        "including the password minimum rising from 8 to 15 characters.",
+        "Real corpus, no gold labels. Two genuine requirement changes, reported as four of "
+        "fifteen findings — including the password minimum rising from 8 to 15 characters.",
     ),
     (
         "Hand-written validation set",
