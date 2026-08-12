@@ -9,7 +9,7 @@ out of sync with themselves, and nobody notices, because finding the conflict re
 suspecting it exists. "Chat with your PDFs" is reactive. CrossCheck is a proactive auditor: it reads
 the whole corpus and reports every pair of statements that conflict.
 
-<!-- docs/demo.gif goes here once recorded, against the NIST real-corpus run (spec §7.7). -->
+![CrossCheck finding a real conflict in NIST SP 800-63B](docs/demo.gif)
 
 ## It found this in a published NIST standard
 
