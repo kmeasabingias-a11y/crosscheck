@@ -3858,3 +3858,69 @@ a signal exists is cheaper than building the rule and measuring it, and it is th
 
 **Provenance.** Mine. Measuring separation before writing the rule followed the recommendation, and
 it saved a filter that would have removed the 6 → 15 password finding from the README.
+
+## D63 — The predicate route fails too, and 800-63B is too small to validate a suppression rule (2026-08-13)
+
+**Decision.** Did **not** ship a predicate-similarity suppression rule. It looked free on the real
+corpus and costs true positives at **every** threshold on the synthetic benchmark. More usefully,
+this run established a methodological rule I should have derived after D55 and did not: **the
+800-63B corpus cannot validate a suppression rule on its own, because it contains only four genuine
+findings.** Probes at `Crosscheck_Runs/predicate_probe.py`, `predicate_separation.py` and
+`predicate_rule_cost.py`; free, they read saved AuditResults.
+
+**Where the hypothesis came from.** D62 closed the `subject` route and named its replacement: scope
+discrimination needs the property being constrained, not the actor performing it — with 112 bits of
+*security strength* against 32 bits of *salt length* as the motivating case. `Claim` already carries
+`predicate` and `quantitative`, neither used as a constraint.
+
+**Two rules were scored.**
+
+*Unit disagreement* (NUMERICAL_MISMATCH whose two claims carry different units) fires on exactly one
+800-63B verdict, removes one false positive, costs nothing. Real but tiny, and it **misses the case
+that motivated the whole line of attack** — the security-strength/salt-length pair carries `bits` on
+both sides. Not shipped alone; one suppression for one example is the overfitting D55 already
+rejected once.
+
+*Predicate similarity* was the interesting one, and it failed in an instructive direction. The
+hypothesis was that dissimilar predicates mean different properties, so dissimilarity should
+suppress. The data says the opposite: genuine findings sit at **0.000–0.200** similarity and false
+positives span **0.000–0.556**, with six false positives above every genuine one. Suppressing on
+*high* similarity looked excellent — 6 of 16 false positives removed, none of the 4 genuine ones —
+and it has a plausible mechanism, that near-identical predicates mean two claims restate one rule
+rather than conflict.
+
+**Then it was scored against both labelled benchmarks, and it is dead.**
+
+| cut | synthetic TP | synthetic F1 | hand-written TP |
+|---|---|---|---|
+| baseline | 92 | .745 | 13 |
+| > 0.20 | **70** | **.639** | 12 |
+| > 0.30 | 81 | .698 | 13 |
+| > 0.40 | 86 | .723 | 13 |
+| > 0.50 | 87 | .725 | 13 |
+
+The threshold that was free on the real corpus destroys **22 of 92** synthetic true positives. No
+threshold tested is free. The mechanism is clear afterwards: an injected contradiction is generated
+by altering a source sentence, so it keeps that sentence's vocabulary and its predicate stays
+*similar* to its counterpart — precisely what the rule suppresses. The four 800-63B genuine findings
+happen to be cross-document rephrasings with divergent wording, which is a property of those four
+items, not of contradictions.
+
+**The methodological finding, which outlives the rule.** This is the third instance of one pattern:
+D55's `non_normative`, D62's `subject`, and now `predicate`. Each looked good on 800-63B. The
+constant is that **800-63B has 4 genuine findings, so "costs zero true positives" there is a claim
+with n=4 behind it** — it cannot distinguish a rule that is safe from one that is fitted. Any
+future suppression rule must be scored against the synthetic (139 gold pairs) and hand-written (28)
+sets before it is believed, and the real corpus is where a rule is *motivated*, never where it is
+*validated*. That asymmetry is now explicit rather than a habit.
+
+**What is left of scope discrimination.** All three cheap signals available from existing fields —
+subject, predicate, unit — are now measured and closed. What remains is not a suppression rule but
+a representational change: deciding whether two claims constrain the same property requires
+comparing normalised entity/property pairs that nothing in the pipeline currently produces. That is
+a design change with its own extraction cost and its own failure modes, and it is not something to
+start at the end of a session. Real-corpus precision stays at 33.3%.
+
+**Provenance.** Mine. Scoring against both benchmarks before believing the real-corpus result
+followed the recommendation, and it is the only reason a rule that looked free is not now shipping
+and quietly costing a fifth of the synthetic set's recall.
