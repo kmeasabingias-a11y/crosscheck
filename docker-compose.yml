@@ -31,7 +31,7 @@ services:
   # for never debugging a half-downloaded model.
   warm-models:
     build: .
-    image: crosscheck:0.1.0
+    image: crosscheck:0.2.0
     container_name: crosscheck-warm-models
     command: ["crosscheck", "warm-models"]
     environment:
@@ -53,7 +53,7 @@ services:
     # Same build and tag as warm-models: the second build is a pure cache hit, and pinning both
     # to one tag guarantees the models were warmed by the identical image that serves them.
     build: .
-    image: crosscheck:0.1.0
+    image: crosscheck:0.2.0
     container_name: crosscheck-api
     depends_on:
       warm-models:
@@ -85,7 +85,7 @@ services:
   # actually run the pipeline.
   ui:
     build: .
-    image: crosscheck:0.1.0
+    image: crosscheck:0.2.0
     container_name: crosscheck-ui
     command:
       - streamlit
