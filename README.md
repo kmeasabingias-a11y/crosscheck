@@ -189,15 +189,16 @@ Both write-ups are in [`benchmarks/realcorpus/`](benchmarks/realcorpus/).
 Eight stages. The two that cost money are last, and they are last on purpose.
 
 ```mermaid
-flowchart LR
-    A[Documents<br/>PDF · DOCX · MD · TXT] --> B[1 · Parse] --> C[2 · Chunk<br/>sentence-aware]
-    C --> D[3 · Extract claims<br/>Claude · cached]
-    D --> E[4 · Embed &amp; store<br/>bge-large + BM25 → Qdrant]
-    E --> F[5 · Candidate pairs<br/>hybrid, top-25, cross-doc]
-    F --> G[6 · Rerank<br/>bge-reranker-v2-m3]
-    G --> H[7 · NLI filter<br/>deberta-v3, both orderings]
-    H --> I[8 · LLM judge<br/>verbatim evidence, validated]
-    I --> J[Report<br/>JSON · HTML · Streamlit]
+flowchart TD
+    A[Documents · PDF, DOCX, MD, TXT] --> B[1 · Parse]
+    B --> C[2 · Chunk · sentence-aware, 200-400 tokens]
+    C --> D[3 · Extract claims · Claude, cached]
+    D --> E[4 · Embed &amp; store · bge-large + BM25 → Qdrant]
+    E --> F[5 · Candidate pairs · hybrid, top-25, cross-document]
+    F --> G[6 · Rerank · bge-reranker-v2-m3]
+    G --> H[7 · NLI filter · deberta-v3, both orderings]
+    H --> I[8 · LLM judge · verbatim evidence, substring-validated]
+    I --> J[Report · JSON, HTML, Streamlit]
 
     style D fill:#fff3e0,stroke:#d98324
     style I fill:#fff3e0,stroke:#d98324
