@@ -3681,3 +3681,113 @@ worth it for a portfolio project.
 
 **Provenance.** Mine. Holding everything but the model constant, and refusing to project an
 end-to-end number from a recall-only measurement, both followed the recommendation.
+
+## D60 — The NLI filter buys cost, not precision: §9.3 ablations run at last (2026-08-13)
+
+**Decision.** Ran the three §9.3 ablations end to end on the hand-written benchmark —
+`dense_only`, `judge_sonnet`, `nli_off`, each one delta from a `baseline` arm — for **$7.17**.
+Runner is `scripts/ablate.py`; results in `docs/ablations.md`. Kept every shipped default
+unchanged. §9.3 has asked for three ablations since the spec was written and the infrastructure
+had existed for months; what was missing was numbers, not capability.
+
+**The headline is a correction to my own architecture.** §4 justifies the two-stage NLI→judge
+design on cost, with the strong implication that filtering also protects the judge from noise.
+It does not. Judging the **1,202 pairs the filter discards** recovers **3 of 28 gold pairs** and
+produces exactly **one** additional false positive — precision .765 → .762, recall .464 → .571,
+F1 .578 → **.653**. The judge rejects the discarded pairs perfectly well by itself.
+
+So the filter is a pure cost optimisation and not a free one: it removes **69% of judge spend**
+($4.36 → $1.33 per audit at the measured $0.00252/pair) at a price of **~$1.01 per contradiction
+missed**. That is a defensible trade and it is now stated as a trade rather than as a free lunch.
+I am leaving the filter on by default — the cost argument is real, and a portfolio project that
+quietly quadruples its own bill to buy .075 F1 is making the wrong point — but the number belongs
+in the open.
+
+**The second finding is that the stages lose different types, and they are disjoint.** Turning the
+filter off recovers `obligation_reversal` (+2, recall .20 → .60) and `numerical_mismatch` (+1).
+Upgrading the judge to Sonnet recovers `scope_jurisdiction` (+2, **0/3 → 2/3** — off zero for the
+first time in this project's history). Neither touches what the other recovers. That is an
+independent line of evidence for what D57's funnel and D58's top-k sweep concluded by other
+methods, and it is more useful than either, because it attributes the loss **by contradiction type**
+rather than by stage.
+
+It also means the obvious next experiment — NLI off *and* Sonnet — should be roughly additive at
+~18 of 28. I did not run it: 1,730 pairs at Sonnet prices is ~$12.75 for one audit, more than the
+remaining credit, and a projected number from disjointness is exactly the proxy error D58 warned
+about. It is recorded as untested.
+
+**§7.3's rationale for hybrid retrieval is not what the data shows.** The spec makes hybrid the
+default because obligation reversals and scope conflicts are "phrased very differently", so dense
+retrieval will miss them, and §9.3 asks the delta to be read on the low-overlap stratum for exactly
+that reason. Read there, the two strategies are **identical — 12 true positives each across 26
+pairs**. Hybrid's entire measured advantage is one high-overlap `temporal_conflict`, which is
+mechanically sensible (BM25 is a lexical matcher, so it helps where surface forms agree) and is the
+opposite of the spec's reasoning. Per type, `obligation_reversal` and `scope_jurisdiction` are
+unchanged between the arms.
+
+**Hybrid stays the default anyway**, and the reasoning matters more than the verdict: it is not
+worse on any stratum; the high-overlap stratum holds 2 gold pairs so this benchmark can barely
+speak to it; and `scope_jurisdiction` is 0/3 in *both* arms, so this corpus **cannot test half of
+§7.3's claim at all** — you cannot lose what was never found. The honest position is that §7.3 is
+unsupported here, not refuted.
+
+**Options considered.** Switching the default judge to Sonnet (+.047 F1 at 2.9× cost) and turning
+the NLI filter off by default (+.075 F1 at 3.3× cost). Rejected both. Publishing either as the
+default would oblige re-judging the synthetic benchmark under the new setting to keep
+`docs/eval-report.md` internally consistent — ~1,100 pairs, roughly $10 — spent to restate existing
+numbers rather than learn anything. Both are one config value away and both are documented.
+
+**What I got wrong, recorded because the pattern repeats.** I pre-registered predictions for
+`nli_off` before it ran, per D49's practice. Scored: recall rise **correct** (predicted TP 13→14–16,
+got 16); cost **close** ($3.25 predicted, $3.03 actual); **precision collapse wrong** — I predicted
+FP 4→8–14 and got 4→5; F1 "roughly flat .55–.62" **wrong** (.653); "filter justified on precision
+too" **wrong**. The failed prediction was the informative one: I believed the filter was protecting
+the judge, and the entire finding above is that it is not. Pre-registration is what turned a
+pleasant result into a corrected belief. For `dense_only` I predicted the lost true positive would
+be `numerical_mismatch` or `direct_negation` (noise) — wrong on the type, `temporal_conflict`, but
+right on the conclusion that the arm would not substantiate §7.3. For `judge_sonnet` I predicted
+`scope_jurisdiction` 0→1 from D59; it was 0→2.
+
+**A tension with D59 I am recording rather than smoothing.** D59 described scope_jurisdiction as
+"including *one* of the two hand-written flips"; this full A/B says **both** are. The likely
+explanation is in the same file — `type_agreement` drops .846 → .733 under Sonnet, and TP/FN are
+counted on the **gold** type while D59 was reading the **judge's predicted** type, so a gold
+scope_jurisdiction pair can appear under another label in D59's accounting. That reconciles them,
+but it is an inference and is written down as one.
+
+**Provenance.** Mine. Running the baseline as a gate before any paid arm, and pre-registering
+predictions before each result, both followed the recommendation; the second is what caught the
+wrong belief about the filter.
+
+## D61 — Ablation write-up goes in its own file, and §9.3's judge comparison is Haiku vs Sonnet (2026-08-13)
+
+**Two smaller decisions from the same session, recorded separately because they are about method
+rather than results.**
+
+**The ablations live in `docs/ablations.md`, not in `docs/eval-report.md`.** I checked before
+writing: `docs/eval-report.md` is **byte-identical** to `benchmarks/results/20260804T161858Z/report.md`
+— it is a generated copy, not a hand-maintained document. Appending a hand-written ablations section
+would have been erased by the next `crosscheck eval` run, and would have broken the property that
+the file is a faithful copy of one run. The ablations also come from a different harness, on one
+benchmark, at settings that differ per arm; they do not belong inside a single-run report. README
+links both. Option considered and rejected: teaching `runner.py` to emit the section, which would
+couple the eval runner to experiments it does not run.
+
+**§9.3 lists "Claude Sonnet 4.6 vs. GPT-4o" for the judge ablation; I ran Haiku 4.5 vs Sonnet 4.6.**
+This is a deliberate deviation. The question the spec is reaching for is "does the judge model
+matter, and how much", and the comparison that actually informs a decision here is between the model
+this project **ships** (Haiku, chosen for cost) and the model it would **upgrade to** (Sonnet). A
+GPT-4o arm would add a second vendor, a second SDK path and a second cost model to answer a question
+nobody is choosing between. The cross-family requirement in §9.1 — which exists to stop the
+benchmark measuring self-recognition — is untouched: the synthetic set is still generated by GPT-4.1
+and judged by Claude. §9.3's requested outputs are both reported: agreement rate (**.552** Jaccard on
+positives) and per-type accuracy.
+
+**One measurement caveat that shapes how the agreement figure is labelled.** A `ContradictionReport`
+stores only positive verdicts, so what is computable from two arms' reports is agreement on what each
+judge **flagged**, not a full 2×2 over all 528 pairs. Folding in the ~500 pairs both judges rejected
+would push agreement above 95% and mean nothing. It is therefore labelled "agreement on positives"
+everywhere it appears, because the bare number reads far worse than the reality.
+
+**Provenance.** Mine. The generated-file check followed the recommendation, and it caught a section
+that would have silently vanished on the next eval run.

@@ -88,6 +88,34 @@ model families, so the score is not measuring a model's ability to recognise its
 Full report with confusion matrices, observability rates and per-stratum detail:
 [`docs/eval-report.md`](docs/eval-report.md).
 
+## Ablations
+
+Each arm changes one thing, on the hand-written benchmark. The baseline is re-run first and must
+reproduce .578, so a delta is never measured against a zero that has drifted.
+
+| Arm | P | R | F1 | Pairs judged |
+|---|---|---|---|---|
+| Baseline — Haiku, hybrid, NLI on | .765 | .464 | **.578** | 528 |
+| Dense-only retrieval | .800 | .429 | **.558** | 510 |
+| Judge → Sonnet 4.6 | .750 | .536 | **.625** | 531 |
+| NLI filter off | .762 | .571 | **.653** | 1,730 |
+
+Two results worth stating plainly:
+
+**The NLI filter buys no precision.** Judging the 1,202 pairs it discards recovers 3 gold pairs and
+adds *one* false positive. So the two-stage architecture is a cost optimisation and nothing else —
+it removes 69% of judge spend at a price of ~$1.01 per contradiction missed. Worth it when paying
+per pair; not free.
+
+**The stages lose different types.** Turning the filter off recovers obligation reversals (+2) and a
+numerical mismatch; upgrading the judge recovers scope/jurisdiction conflicts (+2), moving that type
+off 0/3 for the first time. The two sets are disjoint — which also means hybrid retrieval's
+justification in the spec (that obligation reversals need lexical matching) is not what the data
+shows: dense-only and hybrid tie at 12/26 on the low-overlap stratum.
+
+Method, per-type tables, judge agreement (.552 on positives) and caveats:
+[`docs/ablations.md`](docs/ablations.md).
+
 ## Calibration
 
 Almost no portfolio project checks whether its confidence scores mean anything. This one does.
