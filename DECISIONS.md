@@ -3791,3 +3791,70 @@ everywhere it appears, because the bare number reads far worse than the reality.
 
 **Provenance.** Mine. The generated-file check followed the recommendation, and it caught a section
 that would have silently vanished on the next eval run.
+
+## D62 — `Claim.subject` cannot discriminate scope: the field holds the actor, not the regulated thing (2026-08-13)
+
+**Decision.** Did **not** build the subject-agreement filter. Measured first, and the signal is not
+there: no threshold on subject similarity removes a single 800-63B false positive without also
+removing a genuine finding. Recording this as a closed line of attack rather than leaving it on the
+list for a fourth session. Probes at `Crosscheck_Runs/subject_probe.py` and `subject_separation.py`;
+free, they read the saved `nist63b_result.json`.
+
+**Why it looked so promising.** The 800-63B post-mortem grouped eleven false positives by cause and
+found that **nine of eleven paired claims that are not about the same thing** — different actors,
+different entities, different quantities, complementary halves of one rule. D55 shipped two narrow
+rules against the mechanical cases and lifted real-corpus precision 26.7% → 33.3%. The remaining
+cluster is described in my own notes, twice, as "the concrete thing to attack next". The pipeline
+already extracts a `subject` per claim and has never used it as a constraint. The rule writes
+itself: suppress a pair whose subjects disagree.
+
+**The measurement.** Jaccard on subject tokens for all 20 positive verdicts, with the four genuine
+findings identified from the corpus README and cross-checked against their confidences (0.92/0.85
+obligation_reversal for the out-of-band deprecation; 0.92 and 0.75 numerical_mismatch for the two
+password minimums — all four match exactly).
+
+| | n | subject-similarity range |
+|---|---|---|
+| genuine | 4 | 0.000 – 0.500 |
+| false positive | 16 | 0.000 – 1.000 |
+
+The two classes occupy the same interval, and the *lowest* genuine similarity is **0.000** — tied
+with nine of the sixteen false positives. There is no cut. Suppressing on dissimilar subjects would
+have destroyed finding [6], `'memorized secrets'` vs `'verifiers and CSPs'`, similarity 0.000 —
+which is the **6 → 15 character password change**, one of the two headline results this project
+quotes on its README.
+
+**It fails in both directions, which is the diagnostic part.** Two false positives have *identical*
+subjects — `'claimant'`/`'claimant'` and `'verifier'`/`'verifier'`, similarity 1.000 — and are still
+wrong. So subject agreement does not imply a real conflict any more than disagreement implies a
+spurious one.
+
+**The mechanism, and why this was structurally doomed.** `subject` is the **grammatical subject** of
+the claim, and normative text names the *actor* there, not the thing being regulated. Every
+requirement in SP 800-63B is performed by a verifier, a claimant, a CSP or an authenticator, so
+hundreds of unrelated requirements share a subject; meanwhile one requirement stated two ways —
+"memorized secrets SHALL be at least 6 characters" versus "verifiers SHALL require passwords of at
+least 15 characters" — carries two different subjects because one phrases the rule around the object
+and the other around the enforcer. The field is orthogonal to the question being asked of it.
+
+**What this implies for a real fix.** Scope discrimination needs what a claim is *about* — predicate
+plus object, the regulated entity and the property being constrained — not who performs it. `Claim`
+already carries `predicate` and `quantitative`; a rule keyed on "same entity, same measured
+property" is the shape that could work, and the 112-bit *security strength* versus 32-bit *salt
+length* false positive is the case that shows why: same unit, same entity family, different
+property. That is a larger change than a suppression rule and is not attempted here.
+
+**Options considered.** (a) Ship the subject rule anyway on the grounds that it is "usually right" —
+rejected outright; it demonstrably deletes a headline finding. (b) A cheap LLM "are these about the
+same thing?" pre-check — rejected for now: it reintroduces per-pair spend at the stage whose whole
+purpose is avoiding it, and D60 has just shown the judge already rejects near-miss pairs competently.
+(c) Record the negative result and stop. Chosen.
+
+**The pattern this is the second instance of.** D55's `non_normative` rule was the one I was most
+confident in and the most destructive, caught only because it was scored against both benchmarks
+before shipping. This is the same failure one step earlier: caught before a line of the rule was
+written, by looking at the field's actual contents on the pairs it was meant to fix. **Checking that
+a signal exists is cheaper than building the rule and measuring it, and it is the same discipline.**
+
+**Provenance.** Mine. Measuring separation before writing the rule followed the recommendation, and
+it saved a filter that would have removed the 6 → 15 password finding from the README.
